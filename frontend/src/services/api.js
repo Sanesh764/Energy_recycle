@@ -4,7 +4,7 @@ import { ENV } from '../config/env';
  * API SERVICE ABSTRACTION LAYER
  * 
  * Centralizes all HTTP communication with the backend.
- * Uses VITE_API_BASE_URL (defaults to http://localhost:3000/api).
+ * Uses VITE_API_BASE_URL (defaults to http://localhost:5000/api).
  * 
  * Future endpoints specified in SPEC.md:
  * - GET  /health

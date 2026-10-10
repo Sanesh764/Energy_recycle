@@ -4,6 +4,34 @@ const User = require('../models/User');
 
 const VALID_ROLES = Object.freeze(['citizen', 'collector', 'admin']);
 
+/**
+ * Isolated, controlled demo accounts for local development and demonstration only.
+ * Strictly non-production: inaccessible unless ALLOW_DEV_DEMO_AUTH=true and NODE_ENV !== 'production'.
+ */
+const DEV_DEMO_ACCOUNTS = Object.freeze({
+  'ewaste-demo-citizen-token': {
+    cognitoSub: 'dev-demo-citizen-01',
+    name: 'Demo Citizen',
+    email: 'citizen@example.org',
+    role: 'citizen',
+    servicePincodes: []
+  },
+  'ewaste-demo-collector-token': {
+    cognitoSub: 'dev-demo-collector-01',
+    name: 'Demo Collector',
+    email: 'collector@example.org',
+    role: 'collector',
+    servicePincodes: ['110001', '110002']
+  },
+  'ewaste-demo-admin-token': {
+    cognitoSub: 'dev-demo-admin-01',
+    name: 'Demo Administrator',
+    email: 'admin@example.org',
+    role: 'admin',
+    servicePincodes: []
+  }
+});
+
 let jwtVerifier = null;
 
 /**
@@ -89,6 +117,39 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ error: 'Authorization header is missing or malformed' });
     }
 
+    // Controlled development demo authentication provider:
+    // Strictly opt-in via ALLOW_DEV_DEMO_AUTH and impossible in production (NODE_ENV !== 'production').
+    if (env.NODE_ENV !== 'production' && env.ALLOW_DEV_DEMO_AUTH === true && DEV_DEMO_ACCOUNTS[token]) {
+      const demoAccount = DEV_DEMO_ACCOUNTS[token];
+      let user = await User.findOne({ cognitoSub: demoAccount.cognitoSub });
+      if (!user) {
+        user = await User.create({
+          cognitoSub: demoAccount.cognitoSub,
+          name: demoAccount.name,
+          email: demoAccount.email,
+          role: demoAccount.role,
+          servicePincodes: demoAccount.servicePincodes
+        });
+      } else {
+        if (
+          user.role !== demoAccount.role ||
+          (demoAccount.role === 'collector' && (!user.servicePincodes || user.servicePincodes.length === 0))
+        ) {
+          user.role = demoAccount.role;
+          user.servicePincodes = demoAccount.servicePincodes;
+          if (typeof user.save === 'function') {
+            await user.save();
+          }
+        }
+      }
+      req.user = user;
+      req.auth = {
+        sub: user.cognitoSub,
+        role: user.role
+      };
+      return next();
+    }
+
     const verifier = getVerifier();
     if (!verifier) {
       return res.status(500).json({ error: 'Cognito authentication verifier is not configured' });
@@ -157,5 +218,6 @@ module.exports = {
   mapCognitoGroupsToRole,
   getVerifier,
   setVerifier,
-  VALID_ROLES
+  VALID_ROLES,
+  DEV_DEMO_ACCOUNTS
 };
