@@ -12,14 +12,69 @@ const { notFoundHandler, errorHandler } = require('./middleware/errors');
 
 const app = express();
 
+// Disable X-Powered-By header for security
+app.disable('x-powered-by');
+
+// Standard security headers middleware (no external dependency needed)
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
 // Security: restrict CORS origin as configured (SPEC.md Section 12)
+const AMPLIFY_FRONTEND_ORIGIN = 'https://main.d298fn45tbafnm.amplifyapp.com';
+
+const configuredOrigins = env.CORS_ORIGIN === '*'
+  ? ['*']
+  : env.CORS_ORIGIN.split(',').map((o) => o.trim());
+
+// Allowed origins collection: configured origins, plus official Amplify frontend
+const allowedOriginsSet = new Set([
+  AMPLIFY_FRONTEND_ORIGIN,
+  ...configuredOrigins
+]);
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN === '*' ? '*' : env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // If configured for wildcard
+      if (allowedOriginsSet.has('*')) {
+        return callback(null, true);
+      }
+
+      // Allow official deployed Amplify origin or explicitly configured origins
+      if (allowedOriginsSet.has(origin)) {
+        return callback(null, true);
+      }
+
+      // In local development, also allow local frontend ports
+      if (env.NODE_ENV !== 'production') {
+        if (/^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+          return callback(null, true);
+        }
+      }
+
+      callback(new Error(`CORS policy: origin ${origin} not allowed`));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    optionsSuccessStatus: 200
   })
 );
+
+
 
 // Body parser
 app.use(express.json({ limit: '1mb' }));

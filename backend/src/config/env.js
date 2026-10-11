@@ -19,9 +19,9 @@ const envSchema = z
       .transform((val) => val === 'true'),
     CORS_ORIGIN: z.string().default('*'),
     // AWS Configuration: required in dev/prod; deterministic defaults only in test mode
-    AWS_REGION: z.string().min(1, 'AWS_REGION must be explicitly configured in non-test environments'),
+    AWS_REGION: z.string().default(process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1'),
     S3_BUCKET_NAME: z.string().min(1, 'S3_BUCKET_NAME must be explicitly configured in non-test environments'),
-    BEDROCK_MODEL_ID: z.string().min(1, 'BEDROCK_MODEL_ID must be explicitly configured in non-test environments')
+    BEDROCK_MODEL_ID: z.string().default(process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0')
   })
   .refine(
     (data) => !(data.NODE_ENV === 'production' && data.ALLOW_DEV_DEMO_AUTH === true),
@@ -40,7 +40,7 @@ try {
     COGNITO_CLIENT_ID: process.env.COGNITO_CLIENT_ID,
     ALLOW_DEV_DEMO_AUTH: process.env.ALLOW_DEV_DEMO_AUTH || 'false',
     CORS_ORIGIN: process.env.CORS_ORIGIN,
-    AWS_REGION: process.env.AWS_REGION || (isTest ? 'us-east-1' : undefined),
+    AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || (isTest ? 'us-east-1' : undefined),
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME || (isTest ? 'e-waste-passport-photos-test' : undefined),
     BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID || (isTest ? 'anthropic.claude-3-haiku-20240307-v1:0' : undefined)
   });

@@ -1,7 +1,11 @@
 /**
  * Centralized environment configuration
  */
+const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+
 export const ENV = {
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  // Normalize by removing trailing slash if provided by user/Amplify env
+  API_BASE_URL: (rawApiBaseUrl || 'http://localhost:5000/api').replace(/\/+$/, ''),
   IS_DEV: import.meta.env.DEV,
 };
+

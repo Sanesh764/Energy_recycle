@@ -1,8 +1,20 @@
 const mongoose = require('mongoose');
 const env = require('./env');
-const dns=require("dns");
-
-dns.setServers(['1.1.1.1', '8.8.8.8']);
+const dns = require('dns');
+// Only apply custom public DNS resolvers if explicitly requested or in local dev fallback
+if (process.env.CUSTOM_DNS_SERVERS) {
+  try {
+    dns.setServers(process.env.CUSTOM_DNS_SERVERS.split(',').map((s) => s.trim()));
+  } catch (dnsErr) {
+    console.warn('Failed to set custom DNS servers:', dnsErr.message);
+  }
+} else if (process.env.NODE_ENV === 'development') {
+  try {
+    dns.setServers(['1.1.1.1', '8.8.8.8']);
+  } catch (dnsErr) {
+    // Ignore in environments where setting DNS servers is restricted
+  }
+}
 
 /**
  * Connect to MongoDB using validated MONGODB_URI.

@@ -32,20 +32,31 @@ class ApiError extends Error {
 }
 
 async function request(path, options = {}) {
-  const url = `${ENV.API_BASE_URL}${path}`;
+  // Ensure path starts with a slash
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${ENV.API_BASE_URL}${cleanPath}`;
   const token = localStorage.getItem('ewaste_auth_token');
 
+  // Build headers: omit Content-Type if body is FormData (browser sets boundary)
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
+
+  // 15 second request timeout to handle backend cold starts or slow networks cleanly
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 15000);
 
   try {
     const response = await fetch(url, {
       ...options,
       headers,
+      signal: options.signal || controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       let errorMsg = `HTTP Error ${response.status}`;
@@ -64,7 +75,11 @@ async function request(path, options = {}) {
 
     return await response.json();
   } catch (err) {
+    clearTimeout(timeoutId);
     if (err instanceof ApiError) throw err;
+    if (err.name === 'AbortError') {
+      throw new ApiError('Request timed out. Please check your network connection or server status.', 408);
+    }
     throw new ApiError(err.message || 'Network request failed', 0);
   }
 }
