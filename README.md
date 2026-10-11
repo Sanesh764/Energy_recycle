@@ -3,6 +3,14 @@
 > **Track 03: Waste and Energy**  
 > *"A passport for every old device, from the owner's hand to its final outcome."*
 
+### 🚀 Live Demo
+
+<p align="center">
+  <a href="https://main.d298fn45tbafnm.amplifyapp.com/" target="_blank">
+    <img src="https://img.shields.io/badge/🌐_Live_Demo-Visit_Website-2EA44F?style=for-the-badge" alt="Live Demo" />
+  </a>
+</p>
+
 [![Build & Test](https://img.shields.io/badge/tests-180%20passed-emerald)](https://github.com/Sanesh764/Energy_recycle)
 [![React](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite-blue)](https://vitejs.dev/)
 [![Node](https://img.shields.io/badge/backend-Node.js%2020%20%2B%20Express-green)](https://nodejs.org/)
