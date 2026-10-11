@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema(
     servicePincodes: {
       type: [String],
       default: []
+    },
+    rewardCoins: {
+      type: Number,
+      default: 0,
+      min: 0
     }
   },
   {

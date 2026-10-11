@@ -144,6 +144,14 @@ const deviceSchema = new mongoose.Schema(
     isSample: {
       type: Boolean,
       default: false
+    },
+    rewardCredited: {
+      type: Boolean,
+      default: false
+    },
+    rewardCoinsAwarded: {
+      type: Number,
+      default: 0
     }
   },
   {

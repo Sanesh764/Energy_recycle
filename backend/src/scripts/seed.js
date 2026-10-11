@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { connectDB, disconnectDB } = require('../config/db');
-const { User, Device, Pickup, ImpactFactor, Counter } = require('../models');
+const { User, Device, Pickup, ImpactFactor, Counter, RewardTransaction } = require('../models');
 
 /**
  * Authoritative Published Impact Factor Reference Data
@@ -37,7 +37,8 @@ const DEMO_USERS = [
     name: 'Demo Citizen',
     email: 'citizen@example.org',
     role: 'citizen',
-    servicePincodes: []
+    servicePincodes: [],
+    rewardCoins: 120
   },
   {
     cognitoSub: 'dev-demo-collector-01',
@@ -331,6 +332,28 @@ async function seedDatabase() {
     { upsert: true, new: true }
   );
   console.log('Initialized atomic deviceCode counter to seq >= 105.');
+
+  // 5. Seed initial reward transactions for Demo Citizen if none exist
+  const existingTx = await RewardTransaction.findOne({ userId: citizenUser._id });
+  if (!existingTx) {
+    await RewardTransaction.create([
+      {
+        userId: citizenUser._id,
+        type: 'EARN',
+        amount: 50,
+        deviceCode: 'EW-2026-000103',
+        description: 'Verified collection of TV (EW-2026-000103)'
+      },
+      {
+        userId: citizenUser._id,
+        type: 'EARN',
+        amount: 70,
+        deviceCode: 'EW-2026-000104',
+        description: 'Verified collection of BATTERY (EW-2026-000104)'
+      }
+    ]);
+    console.log('Seeded initial reward transactions (120 coins total) for Demo Citizen.');
+  }
 
   console.log('--- Database Seeding Complete ---');
   await disconnectDB();

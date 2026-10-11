@@ -14,6 +14,7 @@ import { Signup } from '../pages/auth/Signup';
 import { MyDevices } from '../pages/citizen/MyDevices';
 import { AddDevice } from '../pages/citizen/AddDevice';
 import { DevicePassport } from '../pages/citizen/DevicePassport';
+import { RewardsWallet } from '../pages/citizen/RewardsWallet';
 import { OpenPickups } from '../pages/collector/OpenPickups';
 import { MyPickups } from '../pages/collector/MyPickups';
 import { InspectDevice } from '../pages/collector/InspectDevice';
@@ -67,6 +68,18 @@ export function AppRoutes() {
         <Route
           path="/app/citizen/devices/new"
           element={<Navigate to="/citizen/devices/new" replace />}
+        />
+        <Route
+          path="/citizen/rewards"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.CITIZEN]}>
+              <RewardsWallet />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/citizen/rewards"
+          element={<Navigate to="/citizen/rewards" replace />}
         />
         {/* Device Passport: Accessible by Citizen, Collector, or Admin per SPEC.md */}
         <Route

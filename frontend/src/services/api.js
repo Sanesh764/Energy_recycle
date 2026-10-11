@@ -120,5 +120,17 @@ export const pickupsApi = {
 };
 
 export const adminApi = {
-  getStats: () => request('/admin/stats', { method: 'GET' }),
+  getStats: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/admin/stats${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+};
+
+export const rewardsApi = {
+  getWallet: () => request('/rewards/wallet', { method: 'GET' }),
+  redeemCoupon: (couponId) =>
+    request('/rewards/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ couponId }),
+    }),
 };

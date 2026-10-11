@@ -35,4 +35,9 @@ router.post('/presign', authenticate, requireRole('citizen'), async (req, res, n
   }
 });
 
+// Safe dev mock upload target for zero-credential local testing
+router.put('/dev-mock-upload', (req, res) => {
+  res.status(200).send();
+});
+
 module.exports = router;

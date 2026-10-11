@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AppRoutes } from './routes/AppRoutes';
+import { AiAssistant } from './components/AiAssistant';
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
     >
       <AuthProvider>
         <AppRoutes />
+        <AiAssistant />
       </AuthProvider>
     </BrowserRouter>
   );

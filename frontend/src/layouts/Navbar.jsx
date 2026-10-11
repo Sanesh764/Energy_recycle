@@ -32,6 +32,7 @@ export function Navbar() {
       return [
         { to: '/citizen/devices', label: 'My Devices' },
         { to: '/citizen/devices/new', label: '+ Add Device' },
+        { to: '/citizen/rewards', label: 'Rewards Wallet' },
       ];
     }
 

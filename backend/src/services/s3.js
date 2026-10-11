@@ -55,20 +55,30 @@ async function createUploadPresignedUrl({ contentType }) {
   const uniqueId = crypto.randomUUID();
   const key = `devices/${uniqueId}.${extension}`;
 
-  const command = new PutObjectCommand({
-    Bucket: env.S3_BUCKET_NAME,
-    Key: key,
-    ContentType: contentType
-  });
+  try {
+    const command = new PutObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: key,
+      ContentType: contentType
+    });
 
-  const uploadUrl = await getSignedUrl(s3Client, command, {
-    expiresIn: PRESIGNED_URL_EXPIRES_IN_SECONDS
-  });
+    const uploadUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: PRESIGNED_URL_EXPIRES_IN_SECONDS
+    });
 
-  return {
-    uploadUrl,
-    key
-  };
+    return {
+      uploadUrl,
+      key
+    };
+  } catch (err) {
+    if (env.ALLOW_DEV_DEMO_AUTH && env.NODE_ENV !== 'production' && (err.name === 'CredentialsProviderError' || err.message?.includes('credentials'))) {
+      return {
+        uploadUrl: '/api/uploads/dev-mock-upload',
+        key
+      };
+    }
+    throw err;
+  }
 }
 
 /**
@@ -87,14 +97,21 @@ async function createDownloadPresignedUrl({ key, expiresIn = PRESIGNED_URL_EXPIR
     throw error;
   }
 
-  const command = new GetObjectCommand({
-    Bucket: env.S3_BUCKET_NAME,
-    Key: key
-  });
+  try {
+    const command = new GetObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: key
+    });
 
-  return getSignedUrl(s3Client, command, {
-    expiresIn
-  });
+    return await getSignedUrl(s3Client, command, {
+      expiresIn
+    });
+  } catch (err) {
+    if (env.ALLOW_DEV_DEMO_AUTH && env.NODE_ENV !== 'production' && (err.name === 'CredentialsProviderError' || err.message?.includes('credentials'))) {
+      return 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=800&q=80';
+    }
+    throw err;
+  }
 }
 
 /**
@@ -141,6 +158,12 @@ async function verifyDevicePhotoObject({ key }) {
   } catch (err) {
     if (err.statusCode) {
       throw err;
+    }
+    if (env.ALLOW_DEV_DEMO_AUTH && env.NODE_ENV !== 'production' && (err.name === 'CredentialsProviderError' || err.message?.includes('credentials'))) {
+      return {
+        contentLength: 1024,
+        contentType: key.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'
+      };
     }
     if (err.name === 'NotFound' || err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
       const error = new Error('Uploaded photo object does not exist in S3 storage');

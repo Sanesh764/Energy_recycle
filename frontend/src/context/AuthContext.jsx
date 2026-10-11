@@ -47,8 +47,10 @@ export function AuthProvider({ children }) {
     try {
       if (user) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+        localStorage.setItem('ewaste_auth_token', `ewaste-demo-${user.role}-token`);
       } else {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('ewaste_auth_token');
       }
     } catch {
       // Storage unavailable
@@ -66,6 +68,7 @@ export function AuthProvider({ children }) {
       role,
       servicePincodes: role === ROLES.COLLECTOR ? ['110001', '110002'] : [],
     };
+    localStorage.setItem('ewaste_auth_token', `ewaste-demo-${role}-token`);
     setUser(mockUser);
     setLoading(false);
     return mockUser;
@@ -74,10 +77,12 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('ewaste_auth_token');
   };
 
   const switchRole = (newRole) => {
     if (!Object.values(ROLES).includes(newRole)) return;
+    localStorage.setItem('ewaste_auth_token', `ewaste-demo-${newRole}-token`);
     setUser((prev) => ({
       ...(prev || { id: 'usr_switch', email: `${newRole}@example.org` }),
       name: `Active ${newRole.charAt(0).toUpperCase() + newRole.slice(1)}`,
@@ -94,8 +99,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     switchRole,
-    // Cognito token placeholder boundary
-    getAuthToken: () => (user ? 'MOCK_DEV_COGNITO_TOKEN_STUB' : null),
+    getAuthToken: () => (user ? `ewaste-demo-${user.role}-token` : null),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

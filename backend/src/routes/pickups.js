@@ -1,8 +1,9 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { z } = require('zod');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
-const { Pickup, Device } = require('../models');
+const { Pickup, Device, User, RewardTransaction } = require('../models');
 const statusMachine = require('../services/statusMachine');
 const { inspectDevice, completeDevice } = require('../services/deviceOperations');
 
@@ -18,14 +19,21 @@ router.get('/', authenticate, requireRole('collector'), async (req, res, next) =
     const requestedStatus = req.query.status || 'REQUESTED';
     const collectorPincodes = req.user.servicePincodes || [];
 
-    if (!Array.isArray(collectorPincodes) || collectorPincodes.length === 0) {
-      return res.status(200).json([]);
+    let query;
+    if (req.query.assigned === 'true' || req.query.my === 'true') {
+      query = {
+        collectorId: req.user._id,
+        ...(req.query.status ? { status: req.query.status } : {})
+      };
+    } else {
+      if (!Array.isArray(collectorPincodes) || collectorPincodes.length === 0) {
+        return res.status(200).json([]);
+      }
+      query = {
+        status: requestedStatus,
+        'address.pincode': { $in: collectorPincodes }
+      };
     }
-
-    const query = {
-      status: requestedStatus,
-      'address.pincode': { $in: collectorPincodes }
-    };
 
     const pickups = await Pickup.find(query)
       .populate('deviceId', 'deviceCode type ageYears powersOn damage notes photoKey ai status')
@@ -153,6 +161,38 @@ router.post('/:id/collected', authenticate, requireRole('collector'), async (req
         note: 'Device collected from citizen'
       })
     );
+
+    // Credit citizen reward coins upon verified physical collection (prevent duplicate rewards)
+    if (!device.rewardCredited && device.ownerId) {
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        try {
+          const REWARD_COINS_AWARDED = 50;
+          const owner = await User.findById(device.ownerId);
+          if (owner) {
+            owner.rewardCoins = (owner.rewardCoins || 0) + REWARD_COINS_AWARDED;
+            if (typeof owner.save === 'function') {
+              await owner.save();
+            }
+
+            if (RewardTransaction && typeof RewardTransaction.create === 'function') {
+              await RewardTransaction.create({
+                userId: owner._id,
+                type: 'EARN',
+                amount: REWARD_COINS_AWARDED,
+                deviceId: device._id,
+                deviceCode: device.deviceCode,
+                description: `Verified collection of ${device.type} (${device.deviceCode})`
+              });
+            }
+          }
+          device.rewardCredited = true;
+          device.rewardCoinsAwarded = REWARD_COINS_AWARDED;
+        } catch (rewardErr) {
+          // Non-blocking in case of error
+        }
+      }
+    }
+
     await device.save();
 
     res.status(200).json({ pickup, device });

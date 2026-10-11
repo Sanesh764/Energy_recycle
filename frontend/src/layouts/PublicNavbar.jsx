@@ -66,7 +66,7 @@ export function PublicNavbar() {
             </Link>
             <Link to="/signup">
               <Button variant="primary" size="sm" className="font-semibold text-xs tracking-wide">
-                Register Device
+                Recycle Now
               </Button>
             </Link>
           </div>

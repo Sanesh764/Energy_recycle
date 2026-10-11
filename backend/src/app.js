@@ -6,6 +6,7 @@ const uploadRoutes = require('./routes/uploads');
 const deviceRoutes = require('./routes/devices');
 const pickupRoutes = require('./routes/pickups');
 const adminRoutes = require('./routes/admin');
+const { router: rewardRoutes } = require('./routes/rewards');
 const { notFoundHandler, errorHandler } = require('./middleware/errors');
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/pickups', pickupRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/rewards', rewardRoutes);
 app.use('/api', healthRoutes);
 app.use('/', healthRoutes);
 
