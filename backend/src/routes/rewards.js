@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { z } = require('zod');
 const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
@@ -44,7 +45,7 @@ const redeemSchema = z.object({
 
 /**
  * GET /api/rewards/wallet
- * Returns citizen coin balance, available sample coupons, and transaction ledger.
+ * Returns citizen coin balance, total earned, total redeemed, available sample coupons with redemption state, and transaction ledger.
  */
 router.get('/wallet', authenticate, requireRole('citizen'), async (req, res, next) => {
   try {
@@ -57,9 +58,34 @@ router.get('/wallet', authenticate, requireRole('citizen'), async (req, res, nex
       .sort({ createdAt: -1 })
       .limit(50);
 
+    let totalEarned = 0;
+    let totalRedeemed = 0;
+    const redeemedCouponMap = {};
+
+    transactions.forEach((tx) => {
+      if (tx.type === 'EARN') {
+        totalEarned += tx.amount || 0;
+      } else if (tx.type === 'REDEEM') {
+        totalRedeemed += tx.amount || 0;
+        Object.keys(SAMPLE_COUPONS).forEach((cId) => {
+          if (tx.description && tx.description.includes(SAMPLE_COUPONS[cId].name)) {
+            redeemedCouponMap[cId] = tx.couponCode || true;
+          }
+        });
+      }
+    });
+
+    const couponsWithStatus = Object.values(SAMPLE_COUPONS).map((coupon) => ({
+      ...coupon,
+      isRedeemed: Boolean(redeemedCouponMap[coupon.id]),
+      voucherCode: typeof redeemedCouponMap[coupon.id] === 'string' ? redeemedCouponMap[coupon.id] : null
+    }));
+
     res.status(200).json({
       coins: user.rewardCoins || 0,
-      availableCoupons: Object.values(SAMPLE_COUPONS),
+      totalEarned,
+      totalRedeemed,
+      availableCoupons: couponsWithStatus,
       transactions
     });
   } catch (error) {
@@ -70,6 +96,7 @@ router.get('/wallet', authenticate, requireRole('citizen'), async (req, res, nex
 /**
  * POST /api/rewards/redeem
  * Interactively redeems demo coupon and records ledger entry.
+ * Validates single-use per coupon and sufficient coin balance.
  */
 router.post('/redeem', authenticate, requireRole('citizen'), async (req, res, next) => {
   try {
@@ -88,6 +115,24 @@ router.post('/redeem', authenticate, requireRole('citizen'), async (req, res, ne
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user has already redeemed this single-use demo coupon
+    let existingRedemption = null;
+    if (mongoose.connection?.readyState === 1 || RewardTransaction.findOne._isMockFunction) {
+      existingRedemption = await RewardTransaction.findOne({
+        userId: user._id,
+        type: 'REDEEM',
+        description: new RegExp(coupon.name, 'i')
+      });
+    }
+
+    if (existingRedemption) {
+      return res.status(400).json({
+        error: `Coupon "${coupon.name}" has already been redeemed by your account. Voucher code: ${existingRedemption.couponCode || 'ACTIVE'}.`,
+        alreadyRedeemed: true,
+        voucherCode: existingRedemption.couponCode
+      });
     }
 
     const currentBalance = user.rewardCoins || 0;

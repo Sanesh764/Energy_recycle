@@ -804,4 +804,66 @@ describe('Device Registration & AI Assessment API', () => {
       expect(res.body).toEqual({ error: 'Device not found' });
     });
   });
+
+  describe('Device Registration with Pickup Address', () => {
+    const validAddress = {
+      street: 'Flat 402, Green Enclave, 5th Main Road',
+      locality: 'Sector 14',
+      city: 'New Delhi',
+      state: 'Delhi',
+      pincode: '110001',
+      contactPhone: '9876543210',
+      instructions: 'Gate 2 security clear'
+    };
+
+    test('successfully creates device with PICKUP_REQUESTED status when address provided', async () => {
+      const res = await request(app)
+        .post('/api/devices')
+        .set('Authorization', 'Bearer citizen-token')
+        .send({
+          ...validPayload,
+          pickupAddress: validAddress
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('PICKUP_REQUESTED');
+      expect(res.body.pickupAddress).toBeDefined();
+      expect(res.body.pickupAddress.pincode).toBe('110001');
+      expect(res.body.timeline).toHaveLength(2);
+      expect(res.body.timeline[0].step).toBe('REGISTERED');
+      expect(res.body.timeline[1].step).toBe('PICKUP_REQUESTED');
+    });
+
+    test('rejects registration with invalid PIN code format', async () => {
+      const res = await request(app)
+        .post('/api/devices')
+        .set('Authorization', 'Bearer citizen-token')
+        .send({
+          ...validPayload,
+          pickupAddress: {
+            ...validAddress,
+            pincode: '1100' // Invalid: only 4 digits
+          }
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('PIN code must be a valid 6-digit postal code');
+    });
+
+    test('rejects registration with invalid contact phone format', async () => {
+      const res = await request(app)
+        .post('/api/devices')
+        .set('Authorization', 'Bearer citizen-token')
+        .send({
+          ...validPayload,
+          pickupAddress: {
+            ...validAddress,
+            contactPhone: '12345' // Invalid: only 5 digits
+          }
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Contact phone must be a 10-digit mobile number');
+    });
+  });
 });

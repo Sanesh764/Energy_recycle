@@ -14,8 +14,11 @@ import {
   ArrowRightIcon,
   ShieldCheckIcon,
   EcoLeafIcon,
+  TruckIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
 } from '../../components/ui/Icons';
-import { DEVICE_STATUSES } from '../../config/statusLifecycle';
+import { DEVICE_STATUSES, STATUS_CONFIG } from '../../config/statusLifecycle';
 import { devicesApi } from '../../services/api';
 
 const DEVICE_IMAGE_MAP = {
@@ -32,6 +35,7 @@ export function MyDevices() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'COMPLETED'
 
   const fetchDevices = async () => {
     setLoading(true);
@@ -50,6 +54,16 @@ export function MyDevices() {
   useEffect(() => {
     fetchDevices();
   }, []);
+
+  const filteredDevices = devices.filter((dev) => {
+    if (activeFilter === 'COMPLETED') {
+      return dev.status === DEVICE_STATUSES.COMPLETED;
+    }
+    if (activeFilter === 'ACTIVE') {
+      return dev.status !== DEVICE_STATUSES.COMPLETED && dev.status !== DEVICE_STATUSES.CANCELLED;
+    }
+    return true;
+  });
 
   if (loading) {
     return <LoadingState message="Loading your registered device passports..." />;
@@ -79,10 +93,10 @@ export function MyDevices() {
             MY DEVICES
           </h1>
           <p className="text-sm text-zinc-600">
-            Track every registered device from first assessment to certified final outcome.
+            Track each registered passport through its doorstep collection, physical diagnostic inspection, and certified final disposition.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link to="/citizen/rewards">
             <Button variant="secondary" size="md">
               <EcoLeafIcon className="w-4 h-4 mr-1.5 text-forest-700" />
@@ -98,17 +112,72 @@ export function MyDevices() {
         </div>
       </div>
 
-      {devices.length === 0 ? (
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-zinc-200 pb-3">
+        <button
+          onClick={() => setActiveFilter('ALL')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeFilter === 'ALL'
+              ? 'bg-forest-900 text-white shadow-subtle'
+              : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          All Passports ({devices.length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('ACTIVE')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeFilter === 'ACTIVE'
+              ? 'bg-forest-900 text-white shadow-subtle'
+              : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          Active Pickups ({devices.filter((d) => d.status !== DEVICE_STATUSES.COMPLETED && d.status !== DEVICE_STATUSES.CANCELLED).length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('COMPLETED')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeFilter === 'COMPLETED'
+              ? 'bg-forest-900 text-white shadow-subtle'
+              : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          Completed Outcomes ({devices.filter((d) => d.status === DEVICE_STATUSES.COMPLETED).length})
+        </button>
+      </div>
+
+      {filteredDevices.length === 0 ? (
         <EmptyState
-          title="No Devices Registered Yet"
-          message="Give your old phone, laptop, or gadget a responsible next step. Upload a photo to generate an instant AI passport."
-          actionText="Register Your First Device"
+          title={
+            activeFilter === 'ACTIVE'
+              ? 'No Active Collection Requests'
+              : activeFilter === 'COMPLETED'
+              ? 'No Completed Passports'
+              : 'No Devices Registered Yet'
+          }
+          message="Give your old phone, laptop, or gadget a responsible next step. Upload a photo and schedule doorstep collection."
+          actionText="Register a Device"
           onAction={() => window.location.assign('/citizen/devices/new')}
         />
       ) : (
         /* Grid of Product-Object Device Cards */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {devices.map((device) => {
+          {filteredDevices.map((device) => {
+            const isPickupRequestedOrLater = [
+              DEVICE_STATUSES.PICKUP_REQUESTED,
+              DEVICE_STATUSES.ACCEPTED,
+              DEVICE_STATUSES.COLLECTED,
+              DEVICE_STATUSES.INSPECTED,
+              DEVICE_STATUSES.COMPLETED,
+            ].includes(device.status);
+
+            const isAcceptedOrLater = [
+              DEVICE_STATUSES.ACCEPTED,
+              DEVICE_STATUSES.COLLECTED,
+              DEVICE_STATUSES.INSPECTED,
+              DEVICE_STATUSES.COMPLETED,
+            ].includes(device.status);
+
             const isCollectedOrLater = [
               DEVICE_STATUSES.COLLECTED,
               DEVICE_STATUSES.INSPECTED,
@@ -121,7 +190,7 @@ export function MyDevices() {
             return (
               <div
                 key={device._id}
-                className="bg-white rounded-2xl border border-zinc-200/90 shadow-subtle hover:border-zinc-300 hover:shadow-premium transition-all overflow-hidden flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-zinc-200 shadow-subtle hover:border-zinc-300 hover:shadow-premium transition-all overflow-hidden flex flex-col justify-between"
               >
                 <div>
                   {/* Card Top Strip with Device Image & Identity */}
@@ -154,33 +223,58 @@ export function MyDevices() {
                     <StatusBadge status={device.status} />
                   </div>
 
-                  {/* AI Suggestion Section */}
+                  {/* Body Content */}
                   <div className="p-5 sm:p-6 space-y-4">
+                    {/* Pickup Address Display */}
+                    {device.pickupAddress && (
+                      <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-zinc-800">
+                          <TruckIcon className="w-3.5 h-3.5 text-forest-700" />
+                          <span>Pickup Location:</span>
+                        </div>
+                        <p className="text-zinc-600 truncate pl-5">
+                          {device.pickupAddress.street}, {device.pickupAddress.locality}, {device.pickupAddress.city} - {device.pickupAddress.pincode}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* AI Advisory Box */}
                     {device.ai && (
                       <div className="p-3.5 bg-forest-50/60 rounded-xl border border-forest-200/70 space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-mono text-[10px] font-bold text-forest-800 uppercase tracking-wider">
-                            AI SUGGESTION
+                            AI DISPOSITION GUIDANCE
                           </span>
                           <span className="font-mono font-bold text-forest-900 text-xs">
                             {device.ai.suggestedOutcome}
                           </span>
                         </div>
-                        <p className="text-xs text-zinc-600 leading-relaxed">
+                        <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">
                           {device.ai.reason}
                         </p>
                       </div>
                     )}
 
-                    {/* Compact Progress Indicator */}
+                    {/* Verified Collection Reward Badge */}
+                    {device.rewardCredited && (
+                      <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between text-xs text-emerald-950 font-mono">
+                        <span className="flex items-center gap-1.5 font-bold">
+                          <CheckCircleIcon className="w-4 h-4 text-emerald-700" />
+                          Collection Reward Awarded
+                        </span>
+                        <span className="font-black text-forest-900">+50 EcoCoins</span>
+                      </div>
+                    )}
+
+                    {/* Lifecycle Stage Timeline Bar */}
                     <div className="pt-1">
                       <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 block mb-2 font-semibold">
-                        Lifecycle Stage
+                        Lifecycle Progression
                       </span>
                       <div className="flex items-center justify-between text-xs font-mono text-zinc-600">
                         <span className="text-forest-800 font-bold">● Registered</span>
-                        <span className={device.status !== DEVICE_STATUSES.REGISTERED ? 'text-forest-800 font-bold' : 'text-zinc-400'}>
-                          {device.status !== DEVICE_STATUSES.REGISTERED ? '● Pickup' : '○ Pickup'}
+                        <span className={isPickupRequestedOrLater ? 'text-forest-800 font-bold' : 'text-zinc-400'}>
+                          {isPickupRequestedOrLater ? '● Pickup' : '○ Pickup'}
                         </span>
                         <span className={isCollectedOrLater ? 'text-forest-800 font-bold' : 'text-zinc-400'}>
                           {isCollectedOrLater ? '● Collected' : '○ Collected'}
@@ -200,7 +294,7 @@ export function MyDevices() {
                   </span>
                   <Link to={`/citizen/devices/${device._id}`}>
                     <Button variant="secondary" size="sm" className="font-semibold text-xs">
-                      View Passport
+                      View Passport & QR
                       <ArrowRightIcon className="w-3.5 h-3.5 ml-1" />
                     </Button>
                   </Link>

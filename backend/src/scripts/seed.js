@@ -125,8 +125,26 @@ async function seedDatabase() {
           note: 'Doorstep pickup requested for pincode 110001.'
         }
       ],
+      pickupAddress: {
+        street: 'Flat 402, Green Enclave',
+        locality: 'Sector 14',
+        city: 'New Delhi',
+        state: 'Delhi',
+        pincode: '110001',
+        contactPhone: '9876543210',
+        instructions: 'Gate 2 security clear'
+      },
       pickupDetails: {
-        address: { text: 'Flat 402, Green Enclave, Sector 14', pincode: '110001' },
+        address: {
+          text: 'Flat 402, Green Enclave, Sector 14, New Delhi, Delhi - 110001 (Contact: 9876543210)',
+          pincode: '110001',
+          street: 'Flat 402, Green Enclave',
+          locality: 'Sector 14',
+          city: 'New Delhi',
+          state: 'Delhi',
+          contactPhone: '9876543210',
+          instructions: 'Gate 2 security clear'
+        },
         preferredSlot: 'Weekend Morning (10 AM - 1 PM)',
         status: 'REQUESTED',
         collectorId: null
@@ -181,8 +199,26 @@ async function seedDatabase() {
           note: 'Device collected from citizen doorstep'
         }
       ],
+      pickupAddress: {
+        street: 'Block C, Street 9',
+        locality: 'Rohini',
+        city: 'New Delhi',
+        state: 'Delhi',
+        pincode: '110001',
+        contactPhone: '9811223344',
+        instructions: 'Call before arriving'
+      },
       pickupDetails: {
-        address: { text: 'Block C, Street 9, Rohini', pincode: '110001' },
+        address: {
+          text: 'Block C, Street 9, Rohini, New Delhi, Delhi - 110001 (Contact: 9811223344)',
+          pincode: '110001',
+          street: 'Block C, Street 9',
+          locality: 'Rohini',
+          city: 'New Delhi',
+          state: 'Delhi',
+          contactPhone: '9811223344',
+          instructions: 'Call before arriving'
+        },
         preferredSlot: 'Weekday Afternoon (2 PM - 5 PM)',
         status: 'COLLECTED',
         collectorId: collectorUser._id

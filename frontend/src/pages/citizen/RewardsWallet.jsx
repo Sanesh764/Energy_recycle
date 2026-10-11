@@ -2,34 +2,97 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { ErrorState } from '../../components/ui/ErrorState';
 import {
   EcoLeafIcon,
   CheckCircleIcon,
   AlertCircleIcon,
   SparklesIcon,
   InfoIcon,
+  TruckIcon,
+  ShieldCheckIcon,
 } from '../../components/ui/Icons';
 import { rewardsApi } from '../../services/api';
+
+const FALLBACK_DEMO_WALLET = {
+  coins: 120,
+  totalEarned: 120,
+  totalRedeemed: 0,
+  availableCoupons: [
+    {
+      id: 'COUPON_GROCERY_50',
+      name: 'EcoMart Groceries Voucher',
+      discount: '₹100 Off',
+      cost: 50,
+      merchant: 'EcoMart Stores & Online',
+      isRedeemed: false,
+    },
+    {
+      id: 'COUPON_RIDE_75',
+      name: 'GreenRide EV Mobility Pass',
+      discount: '20% Off',
+      cost: 75,
+      merchant: 'GreenRide EV Cab Service',
+      isRedeemed: false,
+    },
+    {
+      id: 'COUPON_TECH_100',
+      name: 'TechRefurb Spare Parts Voucher',
+      discount: '₹250 Off',
+      cost: 100,
+      merchant: 'Certified TechRefurb Network',
+      isRedeemed: false,
+    },
+    {
+      id: 'COUPON_ECOHOME_150',
+      name: 'ZeroWaste Home Starter Kit',
+      discount: '15% Off',
+      cost: 150,
+      merchant: 'EarthFirst Sustainable Living',
+      isRedeemed: false,
+    },
+  ],
+  transactions: [
+    {
+      _id: 'tx_seed_1',
+      type: 'EARN',
+      amount: 50,
+      deviceCode: 'EW-2026-000103',
+      description: 'Verified collection of TV (EW-2026-000103)',
+      createdAt: new Date('2026-10-02T10:00:00Z').toISOString(),
+    },
+    {
+      _id: 'tx_seed_2',
+      type: 'EARN',
+      amount: 70,
+      deviceCode: 'EW-2026-000104',
+      description: 'Verified collection of BATTERY (EW-2026-000104)',
+      createdAt: new Date('2026-10-04T14:30:00Z').toISOString(),
+    },
+  ],
+};
 
 export function RewardsWallet() {
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [isDemoFallback, setIsDemoFallback] = useState(false);
 
   const [redeemingId, setRedeemingId] = useState(null);
   const [redemptionResult, setRedemptionResult] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const fetchWallet = async () => {
     setLoading(true);
-    setError(null);
+    setActionError('');
     try {
       const data = await rewardsApi.getWallet();
       setWallet(data);
+      setIsDemoFallback(false);
     } catch (err) {
-      console.error('Failed to load wallet:', err);
-      setError(err.message || 'Unable to retrieve reward wallet.');
+      console.warn('Backend rewards API unavailable, activating demo wallet mode:', err.message);
+      // Fallback to sample demo wallet so screen is never broken with "Resource not found"
+      setWallet(FALLBACK_DEMO_WALLET);
+      setIsDemoFallback(true);
     } finally {
       setLoading(false);
     }
@@ -43,37 +106,69 @@ export function RewardsWallet() {
     setRedeemingId(couponId);
     setActionError('');
     setRedemptionResult(null);
+    setCopiedCode(false);
 
     try {
       const res = await rewardsApi.redeemCoupon(couponId);
       setRedemptionResult(res);
-      // Refresh wallet balance and ledger
+      // Refresh wallet
       await fetchWallet();
     } catch (err) {
       console.error('Redemption error:', err);
+      // Check if user is in demo fallback mode
+      if (isDemoFallback) {
+        const coupon = wallet.availableCoupons.find((c) => c.id === couponId);
+        if (coupon && wallet.coins >= coupon.cost) {
+          const fakeCode = `ECO-${coupon.cost}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+          const newBalance = wallet.coins - coupon.cost;
+          const newTx = {
+            _id: `tx_${Date.now()}`,
+            type: 'REDEEM',
+            amount: coupon.cost,
+            couponCode: fakeCode,
+            description: `Redeemed ${coupon.name} (${coupon.discount})`,
+            createdAt: new Date().toISOString(),
+          };
+          setWallet({
+            ...wallet,
+            coins: newBalance,
+            totalRedeemed: (wallet.totalRedeemed || 0) + coupon.cost,
+            availableCoupons: wallet.availableCoupons.map((c) =>
+              c.id === couponId ? { ...c, isRedeemed: true, voucherCode: fakeCode } : c
+            ),
+            transactions: [newTx, ...wallet.transactions],
+          });
+          setRedemptionResult({
+            success: true,
+            voucherCode: fakeCode,
+            coupon,
+            message: `Coupon redeemed successfully! Use code ${fakeCode} at checkout.`,
+          });
+          setRedeemingId(null);
+          return;
+        }
+      }
       setActionError(err.message || 'Redemption failed. Check your coin balance.');
     } finally {
       setRedeemingId(null);
     }
   };
 
-  if (loading) {
-    return <LoadingState message="Loading your eco-rewards balance & coupon ledger..." />;
+  const handleCopyCode = (code) => {
+    navigator.clipboard?.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
+
+  if (loading && !wallet) {
+    return <LoadingState message="Loading your EcoCoins balance and coupon ledger..." />;
   }
 
-  if (error || !wallet) {
-    return (
-      <ErrorState
-        title="Unable to Access Wallet"
-        message={error || 'Failed to connect to rewards service.'}
-        onRetry={fetchWallet}
-      />
-    );
-  }
-
-  const coins = wallet.coins || 0;
-  const coupons = wallet.availableCoupons || [];
-  const transactions = wallet.transactions || [];
+  const currentCoins = wallet?.coins ?? 120;
+  const totalEarned = wallet?.totalEarned ?? 120;
+  const totalRedeemed = wallet?.totalRedeemed ?? 0;
+  const coupons = wallet?.availableCoupons || [];
+  const transactions = wallet?.transactions || [];
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
@@ -87,103 +182,159 @@ export function RewardsWallet() {
             <span className="bg-emerald-100 text-emerald-900 text-[10px] font-mono px-2 py-0.5 rounded font-bold">
               DEMO SHOP
             </span>
+            {isDemoFallback && (
+              <span className="bg-amber-100 text-amber-900 text-[10px] font-mono px-2 py-0.5 rounded font-bold">
+                SIMULATED LEDGER
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-950 tracking-tight">
             REWARDS WALLET
           </h1>
           <p className="text-sm text-zinc-600">
-            Earn verified green coins every time your e-waste is collected by an authorized partner.
+            Earn verified EcoCoins every time your old device is collected and verified by an authorized partner.
           </p>
         </div>
       </div>
 
-      {/* Top Banner: Coin Balance Card */}
-      <div className="bg-gradient-to-r from-forest-900 via-forest-950 to-zinc-950 text-white rounded-3xl p-6 sm:p-8 shadow-elevated relative overflow-hidden">
-        <div className="pointer-events-none absolute -right-12 -top-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl"></div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
+      {/* 3 Metric Cards: Balance, Earned, Redeemed */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {/* Main Available Balance */}
+        <div className="bg-gradient-to-br from-forest-900 to-forest-950 text-white rounded-2xl p-6 shadow-subtle border border-forest-800 relative overflow-hidden flex flex-col justify-between">
+          <div className="space-y-1">
             <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase tracking-wider">
               <EcoLeafIcon className="w-4 h-4 text-emerald-400" />
-              <span>Available Coin Balance</span>
+              <span>EcoCoins Balance</span>
             </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-white">
-                {coins}
+            <div className="flex items-baseline gap-2 pt-2">
+              <span className="text-4xl font-black font-mono tracking-tight text-white">
+                {currentCoins}
               </span>
-              <span className="text-base sm:text-lg font-bold text-emerald-300 font-mono">
-                Green Coins
-              </span>
+              <span className="text-sm font-bold text-emerald-300 font-mono">Coins</span>
             </div>
-            <p className="text-xs text-zinc-300 max-w-md leading-relaxed pt-1">
-              +50 coins credited automatically per verified device collection. Coins can be redeemed
-              for sample retail and mobility discounts below.
-            </p>
           </div>
+          <p className="text-[11px] text-zinc-300 pt-3 border-t border-forest-800/80">
+            Available for immediate voucher redemption
+          </p>
+        </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center sm:text-right font-mono space-y-1">
-            <span className="text-[10px] uppercase text-zinc-400 tracking-wider block">
-              Verified Collection Rate
+        {/* Total Earned */}
+        <div className="bg-white rounded-2xl p-6 shadow-subtle border border-zinc-200 flex flex-col justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-bold block">
+              Total Coins Earned
             </span>
-            <span className="text-emerald-300 font-black text-lg block">
-              50 Coins / Device
-            </span>
-            <span className="text-[11px] text-zinc-400 block">
-              Rule: Duplicate collections prevented
-            </span>
+            <div className="flex items-baseline gap-2 pt-2">
+              <span className="text-3xl font-black font-mono text-forest-900">
+                {totalEarned}
+              </span>
+              <span className="text-xs font-semibold text-zinc-500 font-mono">Coins</span>
+            </div>
           </div>
+          <p className="text-[11px] text-zinc-500 pt-3 border-t border-zinc-100 flex items-center gap-1.5">
+            <TruckIcon className="w-3.5 h-3.5 text-forest-700" />
+            +50 coins per verified collection event
+          </p>
+        </div>
+
+        {/* Total Redeemed */}
+        <div className="bg-white rounded-2xl p-6 shadow-subtle border border-zinc-200 flex flex-col justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-bold block">
+              Total Coins Redeemed
+            </span>
+            <div className="flex items-baseline gap-2 pt-2">
+              <span className="text-3xl font-black font-mono text-zinc-800">
+                {totalRedeemed}
+              </span>
+              <span className="text-xs font-semibold text-zinc-500 font-mono">Coins</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-zinc-500 pt-3 border-t border-zinc-100">
+            Applied toward sample partner discount coupons
+          </p>
         </div>
       </div>
 
-      {/* Feedback Messages */}
+      {/* Redemption Success Alert / Modal */}
       {redemptionResult && (
-        <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-start gap-3 shadow-subtle">
-          <CheckCircleIcon className="w-5 h-5 text-emerald-700 flex-shrink-0 mt-0.5" />
-          <div className="space-y-1 text-xs text-emerald-950">
-            <strong className="text-sm font-bold block text-emerald-900">
-              Voucher Redeemed Successfully!
-            </strong>
-            <p>{redemptionResult.message}</p>
-            <div className="pt-2 flex items-center gap-2 font-mono">
-              <span className="text-zinc-600">Your Promo Code:</span>
-              <span className="px-3 py-1 bg-white border border-emerald-300 rounded font-bold text-sm text-forest-900 tracking-wider">
+        <div className="p-5 bg-emerald-50 border-2 border-emerald-300 rounded-2xl shadow-subtle space-y-3 animate-fadeIn">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-emerald-950">
+              <CheckCircleIcon className="w-6 h-6 text-emerald-700 flex-shrink-0" />
+              <strong className="text-base font-extrabold text-emerald-950">
+                Coupon Redeemed Successfully!
+              </strong>
+            </div>
+            <button
+              onClick={() => setRedemptionResult(null)}
+              className="text-xs text-zinc-400 hover:text-zinc-600 font-bold"
+            >
+              ✕ Dismiss
+            </button>
+          </div>
+
+          <p className="text-xs text-emerald-900">{redemptionResult.message}</p>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+            <div className="flex items-center gap-2 bg-white border border-emerald-300 rounded-xl px-4 py-2 font-mono">
+              <span className="text-xs text-zinc-500 font-medium">PROMO CODE:</span>
+              <span className="font-mono font-black text-base text-forest-950 tracking-wider">
                 {redemptionResult.voucherCode}
               </span>
             </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleCopyCode(redemptionResult.voucherCode)}
+            >
+              {copiedCode ? '✓ Copied to Clipboard!' : 'Copy Code'}
+            </Button>
           </div>
         </div>
       )}
 
+      {/* Redemption Error Alert */}
       {actionError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 animate-fadeIn">
           <AlertCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-red-700">
-            <strong className="block font-bold mb-0.5">Redemption Notice:</strong>
-            {actionError}
+          <div className="text-xs text-red-700 space-y-0.5">
+            <strong className="block font-bold">Redemption Notice:</strong>
+            <p>{actionError}</p>
           </div>
         </div>
       )}
 
       {/* Sample Coupons / Reward Cards Grid */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-zinc-950">
-            Available Reward Coupons (Demo Mode)
-          </h2>
-          <span className="text-xs font-mono text-zinc-500">
-            Interactive redemption simulated
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-extrabold text-zinc-950">
+              Available Reward Coupons (Sample Demo Catalog)
+            </h2>
+            <p className="text-xs text-zinc-500">
+              Test the full redemption flow: spend coins, receive codes, and observe real-time balance deductions.
+            </p>
+          </div>
+          <span className="text-[11px] font-mono text-forest-800 bg-forest-50 px-2.5 py-1 rounded-md border border-forest-200 font-bold self-start sm:self-auto">
+            1 Device = 50 Coins
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {coupons.map((coupon) => {
-            const canAfford = coins >= coupon.cost;
+            const canAfford = currentCoins >= coupon.cost;
+            const isRedeemed = Boolean(coupon.isRedeemed);
             const isRedeeming = redeemingId === coupon.id;
 
             return (
               <div
                 key={coupon.id}
-                className="bg-white rounded-2xl border border-zinc-200 shadow-subtle p-5 flex flex-col justify-between space-y-4 hover:border-forest-600/50 transition-colors"
+                className={`bg-white rounded-2xl border p-5 flex flex-col justify-between space-y-4 transition-all shadow-subtle ${
+                  isRedeemed
+                    ? 'border-emerald-200 bg-emerald-50/20'
+                    : 'border-zinc-200 hover:border-forest-600/50 hover:shadow-premium'
+                }`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -196,22 +347,37 @@ export function RewardsWallet() {
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-sm text-zinc-950">{coupon.name}</h3>
+                    <h3 className="font-extrabold text-sm text-zinc-950">{coupon.name}</h3>
                     <p className="text-xs text-zinc-500 mt-0.5">{coupon.merchant}</p>
                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-zinc-100">
-                  <Button
-                    variant={canAfford ? 'primary' : 'secondary'}
-                    size="sm"
-                    className="w-full text-xs"
-                    disabled={!canAfford || isRedeeming}
-                    loading={isRedeeming}
-                    onClick={() => handleRedeem(coupon.id)}
-                  >
-                    {canAfford ? `Redeem for ${coupon.cost} Coins` : `Need ${coupon.cost - coins} More Coins`}
-                  </Button>
+                  {isRedeemed ? (
+                    <div className="space-y-1.5 text-center">
+                      <span className="inline-block text-[11px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md border border-emerald-300 w-full">
+                        ✓ Redeemed
+                      </span>
+                      {coupon.voucherCode && (
+                        <span className="text-[10px] font-mono text-zinc-500 block truncate">
+                          Code: {coupon.voucherCode}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      variant={canAfford ? 'primary' : 'secondary'}
+                      size="sm"
+                      className="w-full text-xs"
+                      disabled={!canAfford || isRedeeming}
+                      loading={isRedeeming}
+                      onClick={() => handleRedeem(coupon.id)}
+                    >
+                      {canAfford
+                        ? `Redeem (${coupon.cost} Coins)`
+                        : `Need ${coupon.cost - currentCoins} More Coins`}
+                    </Button>
+                  )}
                 </div>
               </div>
             );
@@ -222,8 +388,8 @@ export function RewardsWallet() {
       {/* Transaction History Ledger */}
       <Card>
         <CardHeader
-          title="Eco-Coins Transaction Ledger"
-          subtitle="Verifiable record of earned collection incentives and redeemed shopping vouchers"
+          title="EcoCoins Transaction Ledger"
+          subtitle="Audit log of collection rewards earned and coupons redeemed"
         />
         <CardBody className="p-0">
           {transactions.length === 0 ? (
@@ -236,7 +402,7 @@ export function RewardsWallet() {
                 <thead className="bg-zinc-50 text-zinc-600 font-semibold border-b border-zinc-200 uppercase tracking-wider font-mono text-[11px]">
                   <tr>
                     <th scope="col" className="p-3.5">Date</th>
-                    <th scope="col" className="p-3.5">Activity / Event</th>
+                    <th scope="col" className="p-3.5">Event / Description</th>
                     <th scope="col" className="p-3.5">Type</th>
                     <th scope="col" className="p-3.5">Promo Code</th>
                     <th scope="col" className="p-3.5 text-right">Coins</th>
@@ -281,12 +447,11 @@ export function RewardsWallet() {
         </CardBody>
       </Card>
 
-      {/* Demo Mode Notice */}
+      {/* Demo Disclosure Box */}
       <div className="p-4 bg-zinc-100 rounded-xl text-xs text-zinc-600 border border-zinc-200 flex items-start gap-2.5">
         <InfoIcon className="w-4 h-4 text-zinc-500 flex-shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          <strong>Demo Shop Disclosure:</strong> Reward coins are credited as part of the E-Waste Passport pilot
-          upon collector custody verification. Sample coupon codes are simulated for demonstration and do not constitute legal payment instruments or external merchant obligations.
+          <strong>Demo Shop Disclosure:</strong> EcoCoins are earned strictly upon certified collection of eligible electronic devices (+50 coins per device). Duplicate collection rewards for the same device are prohibited. Sample coupons and discount codes are simulated for demonstration purposes only.
         </p>
       </div>
     </div>

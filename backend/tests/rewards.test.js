@@ -131,5 +131,30 @@ describe('Rewards System API', () => {
       expect(res.body.voucherCode).toMatch(/^ECO-50-/);
       expect(richUser.save).toHaveBeenCalled();
     });
+
+    test('returns 400 when coupon has already been redeemed by user', async () => {
+      const citizen = {
+        ...mockCitizen,
+        rewardCoins: 200,
+        save: jest.fn().mockResolvedValue(true)
+      };
+      jest.spyOn(User, 'findById').mockResolvedValue(citizen);
+      jest.spyOn(RewardTransaction, 'findOne').mockResolvedValue({
+        _id: 'tx_existing',
+        type: 'REDEEM',
+        couponCode: 'ECO-50-ABC123',
+        description: 'Redeemed EcoMart Groceries Voucher (₹100 Off)'
+      });
+
+      const res = await request(app)
+        .post('/api/rewards/redeem')
+        .set('Authorization', `Bearer ${citizenToken}`)
+        .send({ couponId: 'COUPON_GROCERY_50' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.alreadyRedeemed).toBe(true);
+      expect(res.body.error).toContain('already been redeemed');
+      expect(res.body.voucherCode).toBe('ECO-50-ABC123');
+    });
   });
 });

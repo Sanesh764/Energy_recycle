@@ -267,30 +267,58 @@ export function DevicePassport() {
                 </div>
               )}
 
-              {/* Pickup Information */}
-              {device.pickup ? (
+              {/* Pickup Logistics Information */}
+              {device.pickupAddress || device.pickup ? (
                 <div className="p-5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                      Collection Schedule
+                  <div className="flex items-center justify-between text-xs pb-2 border-b border-zinc-200">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-forest-800 flex items-center gap-1.5">
+                      <TruckIcon className="w-4 h-4 text-forest-700" />
+                      Doorstep Pickup Logistics
                     </span>
-                    <span className="font-mono text-xs text-forest-900 font-bold">
-                      {device.pickup.status || 'SCHEDULED'}
+                    <span className="font-mono text-xs text-forest-900 font-bold bg-forest-50 px-2 py-0.5 rounded border border-forest-200">
+                      {(device.pickup?.status || device.status).replace(/_/g, ' ')}
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono text-zinc-700">
-                    <div>
-                      <span className="text-zinc-400 block text-[10px]">ADDRESS</span>
-                      <span>{device.pickup.address?.text}</span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-zinc-700">
+                    <div className="sm:col-span-2">
+                      <span className="text-zinc-400 block text-[10px] font-mono uppercase">Full Pickup Address</span>
+                      <p className="font-semibold text-zinc-900">
+                        {device.pickupAddress
+                          ? `${device.pickupAddress.street}, ${device.pickupAddress.locality}, ${device.pickupAddress.city}, ${device.pickupAddress.state} - ${device.pickupAddress.pincode}`
+                          : device.pickup?.address?.text}
+                      </p>
                     </div>
+
                     <div>
-                      <span className="text-zinc-400 block text-[10px]">PINCODE</span>
-                      <span className="font-bold text-zinc-950">{device.pickup.address?.pincode}</span>
+                      <span className="text-zinc-400 block text-[10px] font-mono uppercase">Postal PIN Code</span>
+                      <span className="font-mono font-bold text-zinc-950">
+                        {device.pickupAddress?.pincode || device.pickup?.address?.pincode}
+                      </span>
                     </div>
+
                     <div>
-                      <span className="text-zinc-400 block text-[10px]">PREFERRED SLOT</span>
-                      <span>{device.pickup.preferredSlot}</span>
+                      <span className="text-zinc-400 block text-[10px] font-mono uppercase">Contact Mobile</span>
+                      <span className="font-mono font-bold text-zinc-950">
+                        {device.pickupAddress?.contactPhone || 'Registered Citizen Phone'}
+                      </span>
                     </div>
+
+                    <div className="sm:col-span-2">
+                      <span className="text-zinc-400 block text-[10px] font-mono uppercase">Preferred Slot</span>
+                      <span className="font-mono text-zinc-800">
+                        {device.pickupAddress?.preferredSlot || device.pickup?.preferredSlot || 'Standard Doorstep (10:00 AM - 6:00 PM)'}
+                      </span>
+                    </div>
+
+                    {device.pickupAddress?.instructions && (
+                      <div className="sm:col-span-2 pt-1 border-t border-zinc-200/80">
+                        <span className="text-zinc-400 block text-[10px] font-mono uppercase">Collector Instructions</span>
+                        <p className="italic text-zinc-600 font-mono text-[11px]">
+                          "{device.pickupAddress.instructions}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

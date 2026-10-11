@@ -22,6 +22,30 @@ const pickupSchema = new mongoose.Schema(
         type: String,
         required: true,
         trim: true
+      },
+      street: {
+        type: String,
+        trim: true
+      },
+      locality: {
+        type: String,
+        trim: true
+      },
+      city: {
+        type: String,
+        trim: true
+      },
+      state: {
+        type: String,
+        trim: true
+      },
+      contactPhone: {
+        type: String,
+        trim: true
+      },
+      instructions: {
+        type: String,
+        trim: true
       }
     },
     preferredSlot: {

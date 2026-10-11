@@ -152,6 +152,15 @@ const deviceSchema = new mongoose.Schema(
     rewardCoinsAwarded: {
       type: Number,
       default: 0
+    },
+    pickupAddress: {
+      street: { type: String, trim: true },
+      locality: { type: String, trim: true },
+      city: { type: String, trim: true },
+      state: { type: String, trim: true },
+      pincode: { type: String, trim: true },
+      contactPhone: { type: String, trim: true },
+      instructions: { type: String, trim: true }
     }
   },
   {
