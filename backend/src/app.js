@@ -7,6 +7,7 @@ const deviceRoutes = require('./routes/devices');
 const pickupRoutes = require('./routes/pickups');
 const adminRoutes = require('./routes/admin');
 const { router: rewardRoutes } = require('./routes/rewards');
+const authRoutes = require('./routes/auth');
 const { notFoundHandler, errorHandler } = require('./middleware/errors');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 
 // Routes (SPEC.md Section 8)
+app.use('/api/auth', authRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/pickups', pickupRoutes);

@@ -73,6 +73,20 @@ export const healthApi = {
   getHealth: () => request('/health', { method: 'GET' }),
 };
 
+export const authApi = {
+  login: (credentials) =>
+    request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
+  signup: (payload) =>
+    request('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getMe: () => request('/auth/me', { method: 'GET' }),
+};
+
 export const uploadsApi = {
   getPresignedUrl: ({ contentType }) =>
     request('/uploads/presign', {

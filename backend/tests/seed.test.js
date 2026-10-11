@@ -35,7 +35,7 @@ describe('Seed Data & Authoritative Source Integrity', () => {
 
   describe('Demo Accounts Integrity', () => {
     test('provides distinct demo accounts for citizen, collector, and admin', () => {
-      expect(DEMO_USERS).toHaveLength(3);
+      expect(DEMO_USERS.length).toBeGreaterThanOrEqual(3);
       const roles = DEMO_USERS.map((u) => u.role);
       expect(roles).toContain('citizen');
       expect(roles).toContain('collector');

@@ -31,7 +31,37 @@ const PUBLISHED_IMPACT_FACTORS = [
   // and will correctly evaluate to "not available" per SPEC.md Section 7 line 146.
 ];
 
+const bcrypt = require('bcryptjs');
+
 const DEMO_USERS = [
+  {
+    cognitoSub: 'dev-demo-admin-01',
+    name: 'Admin Sanesh',
+    email: 'sanesh7644@gmail.com',
+    role: 'admin',
+    servicePincodes: []
+  },
+  {
+    cognitoSub: 'dev-demo-collector-01',
+    name: 'Santosh Collector',
+    email: 'santosh@gmail.com',
+    role: 'collector',
+    servicePincodes: ['110001', '110002']
+  },
+  {
+    cognitoSub: 'dev-demo-collector-02',
+    name: 'Collector Two',
+    email: 'collector2@ewaste.local',
+    role: 'collector',
+    servicePincodes: ['110001']
+  },
+  {
+    cognitoSub: 'dev-demo-collector-03',
+    name: 'Collector Three',
+    email: 'collector3@ewaste.local',
+    role: 'collector',
+    servicePincodes: ['110002']
+  },
   {
     cognitoSub: 'dev-demo-citizen-01',
     name: 'Demo Citizen',
@@ -39,24 +69,15 @@ const DEMO_USERS = [
     role: 'citizen',
     servicePincodes: [],
     rewardCoins: 120
-  },
-  {
-    cognitoSub: 'dev-demo-collector-01',
-    name: 'Demo Collector',
-    email: 'collector@example.org',
-    role: 'collector',
-    servicePincodes: ['110001', '110002']
-  },
-  {
-    cognitoSub: 'dev-demo-admin-01',
-    name: 'Demo Administrator',
-    email: 'admin@example.org',
-    role: 'admin',
-    servicePincodes: []
   }
 ];
 
 async function seedDatabase() {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('CRITICAL: Development seed script cannot run in production mode.');
+    throw new Error('Seed script is not permitted in production');
+  }
+
   console.log('--- E-Waste Passport Database Seeding ---');
   await connectDB();
 
@@ -71,18 +92,24 @@ async function seedDatabase() {
   }
   console.log(`Seeded ${PUBLISHED_IMPACT_FACTORS.length} published impact factor references.`);
 
-  // 2. Seed Demo User Accounts (Idempotent upsert)
-  console.log('Seeding demo accounts...');
+  // 2. Seed Demo User Accounts (Hashed passwords with bcrypt, idempotent)
+  console.log('Seeding demo accounts with hashed passwords...');
+  const defaultPasswordHash = await bcrypt.hash('password@123', 10);
+
   const userMap = {};
   for (const userData of DEMO_USERS) {
+    const userToSave = {
+      ...userData,
+      passwordHash: defaultPasswordHash
+    };
     const user = await User.findOneAndUpdate(
-      { cognitoSub: userData.cognitoSub },
-      { $set: userData },
+      { $or: [{ email: userData.email.toLowerCase() }, { cognitoSub: userData.cognitoSub }] },
+      { $set: userToSave },
       { upsert: true, new: true }
     );
-    userMap[user.role] = user;
+    userMap[user.role] = userMap[user.role] || user;
   }
-  console.log('Seeded demo accounts for citizen, collector, and admin.');
+  console.log('Seeded demo accounts for Admin, 3 Collectors, and Citizen.');
 
   const citizenUser = userMap.citizen;
   const collectorUser = userMap.collector;

@@ -1,14 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authApi } from '../services/api';
 
 /**
- * AUTHENTICATION BOUNDARY & CONTEXT
+ * AUTHENTICATION CONTEXT & SESSION MANAGEMENT
  * 
- * NOTE: This is a clean client-side authentication boundary designed to be
- * replaced with Amazon Cognito user pool authentication (JWT) without rewriting the UI.
+ * Manages authenticated user state, tokens, and role-based access.
+ * Communicates with backend /api/auth endpoints for login, signup, and me verification.
  * 
- * In this initial frontend phase, it manages active role switching (citizen, collector, admin)
- * and auth state for local testing. It does NOT contain fake backend authentication logic
- * and must never be mistaken for production security.
+ * Enforced Roles:
+ * - citizen: can register devices, request pickups, earn rewards
+ * - collector: can view open pickups, accept/collect pickups, inspect devices
+ * - admin: view comprehensive impact stats, audit all devices
  */
 
 const AuthContext = createContext(null);
@@ -31,47 +33,73 @@ export function AuthProvider({ children }) {
     } catch {
       // Ignore parse error
     }
-    // Default initial mock state for local preview: Citizen
-    return {
-      id: 'usr_dev_citizen_01',
-      name: 'Sample Citizen',
-      email: 'citizen@example.org',
-      role: ROLES.CITIZEN,
-      servicePincodes: [],
-    };
+    return null;
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // Verify session on mount with server-side /api/auth/me
   useEffect(() => {
-    try {
-      if (user) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-        localStorage.setItem('ewaste_auth_token', `ewaste-demo-${user.role}-token`);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem('ewaste_auth_token');
+    let isMounted = true;
+    async function verifySession() {
+      const token = localStorage.getItem('ewaste_auth_token');
+      if (!token) {
+        if (isMounted) {
+          setUser(null);
+          localStorage.removeItem(STORAGE_KEY);
+          setLoading(false);
+        }
+        return;
       }
-    } catch {
-      // Storage unavailable
-    }
-  }, [user]);
 
-  const login = async ({ email, role = ROLES.CITIZEN }) => {
-    setLoading(true);
-    // Boundary hook: In production, this calls Cognito Auth.signIn()
-    // For now, sets the active development session with designated role
-    const mockUser = {
-      id: `usr_dev_${role}_${Date.now()}`,
-      name: email ? email.split('@')[0] : `Sample ${role}`,
-      email: email || `${role}@example.org`,
-      role,
-      servicePincodes: role === ROLES.COLLECTOR ? ['110001', '110002'] : [],
+      try {
+        const response = await authApi.getMe();
+        if (isMounted) {
+          setUser(response.user);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(response.user));
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.warn('Authentication token expired or invalid:', err.message);
+          setUser(null);
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem('ewaste_auth_token');
+          setLoading(false);
+        }
+      }
+    }
+
+    verifySession();
+    return () => {
+      isMounted = false;
     };
-    localStorage.setItem('ewaste_auth_token', `ewaste-demo-${role}-token`);
-    setUser(mockUser);
-    setLoading(false);
-    return mockUser;
+  }, []);
+
+  const login = async ({ email, password }) => {
+    setLoading(true);
+    try {
+      const data = await authApi.login({ email, password });
+      localStorage.setItem('ewaste_auth_token', data.token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
+      setUser(data.user);
+      return data.user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signup = async ({ name, email, password }) => {
+    setLoading(true);
+    try {
+      const data = await authApi.signup({ name, email, password });
+      localStorage.setItem('ewaste_auth_token', data.token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
+      setUser(data.user);
+      return data.user;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {
@@ -80,15 +108,20 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('ewaste_auth_token');
   };
 
-  const switchRole = (newRole) => {
-    if (!Object.values(ROLES).includes(newRole)) return;
-    localStorage.setItem('ewaste_auth_token', `ewaste-demo-${newRole}-token`);
-    setUser((prev) => ({
-      ...(prev || { id: 'usr_switch', email: `${newRole}@example.org` }),
-      name: `Active ${newRole.charAt(0).toUpperCase() + newRole.slice(1)}`,
-      role: newRole,
-      servicePincodes: newRole === ROLES.COLLECTOR ? ['110001', '110002'] : [],
-    }));
+  // Quick dev account switcher: genuine authentication via backend
+  const quickDevLogin = async (targetRole) => {
+    let email = 'citizen@example.org';
+    if (targetRole === ROLES.ADMIN) {
+      email = 'sanesh7644@gmail.com';
+    } else if (targetRole === ROLES.COLLECTOR) {
+      email = 'santosh@gmail.com';
+    }
+    return await login({ email, password: 'password@123' });
+  };
+
+  // Alias for backward compatibility that securely calls genuine dev login
+  const switchRole = async (newRole) => {
+    return await quickDevLogin(newRole);
   };
 
   const value = {
@@ -97,9 +130,11 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user,
     loading,
     login,
+    signup,
     logout,
+    quickDevLogin,
     switchRole,
-    getAuthToken: () => (user ? `ewaste-demo-${user.role}-token` : null),
+    getAuthToken: () => localStorage.getItem('ewaste_auth_token'),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
