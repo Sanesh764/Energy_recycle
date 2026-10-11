@@ -1,8 +1,24 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { EcoLeafIcon, GithubIcon, LinkedinIcon, ExternalLinkIcon } from '../components/ui/Icons';
 
 export function PublicFooter() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleSectionClick = (e, sectionId) => {
+    e.preventDefault();
+    if (location.pathname === '/') {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+        window.history.pushState(null, '', `/#${sectionId}`);
+      }
+    } else {
+      navigate(`/#${sectionId}`);
+    }
+  };
+
   return (
     <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -33,22 +49,38 @@ export function PublicFooter() {
             </h4>
             <ul className="space-y-2">
               <li>
-                <a href="#how-it-works" className="hover:text-white transition-colors">
+                <a
+                  href="/#how-it-works"
+                  onClick={(e) => handleSectionClick(e, 'how-it-works')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   How It Works
                 </a>
               </li>
               <li>
-                <a href="#rewards" className="hover:text-white transition-colors">
+                <a
+                  href="/#rewards"
+                  onClick={(e) => handleSectionClick(e, 'rewards')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   EcoCoins Rewards
                 </a>
               </li>
               <li>
-                <a href="#why-us" className="hover:text-white transition-colors">
+                <a
+                  href="/#why-us"
+                  onClick={(e) => handleSectionClick(e, 'why-us')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   Why Choose Us
                 </a>
               </li>
               <li>
-                <a href="#impact" className="hover:text-white transition-colors">
+                <a
+                  href="/#impact"
+                  onClick={(e) => handleSectionClick(e, 'impact')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   Impact Model
                 </a>
               </li>
@@ -62,17 +94,29 @@ export function PublicFooter() {
             </h4>
             <ul className="space-y-2">
               <li>
-                <a href="#roles" className="hover:text-white transition-colors">
+                <a
+                  href="/#roles"
+                  onClick={(e) => handleSectionClick(e, 'roles')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   Role Architecture
                 </a>
               </li>
               <li>
-                <a href="#collectors" className="hover:text-white transition-colors">
+                <a
+                  href="/#collectors"
+                  onClick={(e) => handleSectionClick(e, 'collectors')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   Collectors
                 </a>
               </li>
               <li>
-                <a href="#admins" className="hover:text-white transition-colors">
+                <a
+                  href="/#admins"
+                  onClick={(e) => handleSectionClick(e, 'admins')}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
                   Administrators
                 </a>
               </li>

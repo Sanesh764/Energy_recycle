@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth, ROLES } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import {
@@ -29,7 +29,20 @@ export function LandingPage() {
   const [heroImgFailed, setHeroImgFailed] = useState(false);
   const [step1ImgFailed, setStep1ImgFailed] = useState(false);
   const [step2ImgFailed, setStep2ImgFailed] = useState(false);
-  const [step3ImgFailed, setStep3ImgFailed] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace('#', '');
+      const element = document.getElementById(id);
+      if (element) {
+        const timer = setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [location.hash]);
 
   // Dynamic routing based on current authenticated identity
   const getRecycleNowPath = () => {

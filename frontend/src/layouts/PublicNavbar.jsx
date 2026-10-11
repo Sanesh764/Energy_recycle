@@ -1,12 +1,38 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, ROLES } from '../context/AuthContext';
 import { EcoLeafIcon, MenuIcon, CloseIcon } from '../components/ui/Icons';
 import { Button } from '../components/ui/Button';
 
+const NAV_ITEMS = [
+  { id: 'how-it-works', label: 'How It Works' },
+  { id: 'rewards', label: 'EcoCoins' },
+  { id: 'why-us', label: 'Why Us' },
+  { id: 'roles', label: 'Roles' },
+  { id: 'impact', label: 'Impact' },
+  { id: 'developer', label: 'Developer' },
+];
+
 export function PublicNavbar() {
   const { user, role, isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleSectionClick = (e, sectionId) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+
+    if (location.pathname === '/') {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+        window.history.pushState(null, '', `/#${sectionId}`);
+      }
+    } else {
+      navigate(`/#${sectionId}`);
+    }
+  };
 
   const getDashboardPath = () => {
     if (role === ROLES.ADMIN) return '/admin/stats';
@@ -38,42 +64,16 @@ export function PublicNavbar() {
 
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-6" aria-label="Public Navigation">
-            <a
-              href="#how-it-works"
-              className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors"
-            >
-              How It Works
-            </a>
-            <a
-              href="#rewards"
-              className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors"
-            >
-              EcoCoins
-            </a>
-            <a
-              href="#why-us"
-              className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors"
-            >
-              Why Us
-            </a>
-            <a
-              href="#roles"
-              className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors"
-            >
-              Roles
-            </a>
-            <a
-              href="#impact"
-              className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors"
-            >
-              Impact
-            </a>
-            <a
-              href="#developer"
-              className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors"
-            >
-              Developer
-            </a>
+            {NAV_ITEMS.map((item) => (
+              <a
+                key={item.id}
+                href={`/#${item.id}`}
+                onClick={(e) => handleSectionClick(e, item.id)}
+                className="text-xs uppercase tracking-wider font-semibold text-slate-600 hover:text-emerald-800 transition-colors cursor-pointer"
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
 
           {/* Desktop Right Actions */}
@@ -125,48 +125,16 @@ export function PublicNavbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200 bg-white px-5 pt-4 pb-6 space-y-4 shadow-lg">
           <nav className="flex flex-col space-y-3" aria-label="Mobile Navigation">
-            <a
-              href="#how-it-works"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1"
-            >
-              How It Works
-            </a>
-            <a
-              href="#rewards"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1"
-            >
-              EcoCoins Rewards
-            </a>
-            <a
-              href="#why-us"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1"
-            >
-              Why Choose Us
-            </a>
-            <a
-              href="#roles"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1"
-            >
-              User Roles
-            </a>
-            <a
-              href="#impact"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1"
-            >
-              Empirical Impact
-            </a>
-            <a
-              href="#developer"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1"
-            >
-              Developer
-            </a>
+            {NAV_ITEMS.map((item) => (
+              <a
+                key={item.id}
+                href={`/#${item.id}`}
+                onClick={(e) => handleSectionClick(e, item.id)}
+                className="text-sm font-medium text-slate-800 hover:text-emerald-800 py-1 cursor-pointer"
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
 
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
