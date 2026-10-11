@@ -10,6 +10,8 @@ import {
   InfoIcon,
   TruckIcon,
   ShieldCheckIcon,
+  CoinIcon,
+  GiftIcon,
 } from '../../components/ui/Icons';
 import { rewardsApi } from '../../services/api';
 
@@ -202,8 +204,8 @@ export function RewardsWallet() {
         {/* Main Available Balance */}
         <div className="bg-gradient-to-br from-forest-900 to-forest-950 text-white rounded-2xl p-6 shadow-subtle border border-forest-800 relative overflow-hidden flex flex-col justify-between">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase tracking-wider">
-              <EcoLeafIcon className="w-4 h-4 text-emerald-400" />
+            <div className="flex items-center gap-2 text-emerald-300 font-mono text-xs uppercase tracking-wider">
+              <CoinIcon className="w-4 h-4 text-amber-400" />
               <span>EcoCoins Balance</span>
             </div>
             <div className="flex items-baseline gap-2 pt-2">
