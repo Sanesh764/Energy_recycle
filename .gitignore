@@ -58,3 +58,6 @@ Thumbs.db
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+# Keep project specification private
+SPEC.md
