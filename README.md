@@ -49,7 +49,127 @@ Citizens earn **EcoCoins** upon verified collection, which can be redeemed for s
 
 ---
 
-## 3. Verified Demo Accounts & Credentials
+## 3. AWS Cloud Architecture & Integration
+
+E-Waste Passport is architected as an **AWS Cloud-Native Sustainability Solution**. It leverages AWS services to guarantee enterprise-grade security, private blob storage, and multimodal computer vision without keeping raw image binaries in the database.
+
+![AWS Services](https://img.shields.io/badge/AWS-Bedrock%20%7C%20S3%20%7C%20Cognito-FF9900?logo=amazon-aws&logoColor=white)
+
+### 3.1 Cloud Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph Client["Web Browser (React 18 + Vite)"]
+        UI["E-Waste Passport Web App"]
+    end
+
+    subgraph AWSCloud["Amazon Web Services (AWS)"]
+        subgraph Auth["Identity & Access"]
+            Cognito["Amazon Cognito\nUser Pool & Groups\n(citizen, collector, admin)"]
+        end
+
+        subgraph Storage["Object Storage"]
+            S3["Amazon S3\nPrivate Bucket\n(Presigned PUT/GET)"]
+        end
+
+        subgraph GenAI["Generative AI & Multimodal Triage"]
+            Bedrock["Amazon Bedrock\nConverse API\n(Claude 3 Haiku / Sonnet)"]
+        end
+    end
+
+    subgraph Backend["Application Tier (Node.js + Express)"]
+        API["REST API Server (Port 5000)"]
+        JWTVerifier["aws-jwt-verify\n(RS256 Signature Check)"]
+        S3Service["S3 Presigner & Verifier\n(@aws-sdk/client-s3)"]
+        BedrockService["Bedrock Converse Service\n(@aws-sdk/client-bedrock-runtime)"]
+    end
+
+    subgraph Database["Data Tier"]
+        Mongo[("MongoDB Atlas\n(Devices, Pickups, Ledgers)")]
+    end
+
+    %% Interactions
+    UI -- "1. Authenticate" --> Cognito
+    Cognito -- "JWT Tokens" --> UI
+    UI -- "2. Bearer Token + Request" --> API
+    API --> JWTVerifier
+    JWTVerifier -- "Verify Public Keys" --> Cognito
+
+    UI -- "3. Request Presigned URL" --> API
+    API --> S3Service
+    S3Service -- "Generate Presigned PUT" --> S3
+    UI -- "4. Direct Photo Upload" --> S3
+
+    API --> S3Service
+    S3Service -- "Verify Size & HeadObject" --> S3
+    S3Service -- "Retrieve Image Bytes" --> S3
+    
+    API --> BedrockService
+    BedrockService -- "5. Multimodal Vision Triage" --> Bedrock
+    Bedrock -- "Advisory Outcome (JSON)" --> BedrockService
+
+    API -- "6. Atomic Passport Code & State" --> Mongo
+```
+
+### 3.2 Text Architecture Flow
+
+```
++-----------------------------------------------------------------------------------------+
+|                                    CLIENT APPLICATION                                   |
+|                          (Citizen, Collector, Admin Portals)                            |
++---------------------+-------------------------------+-----------------------------------+
+                      │                               │
+         1. Authentication (JWT)         3. Direct Photo Upload (Presigned PUT)
+                      ▼                               ▼
+       +-------------------------------+   +------------------------------------+
+       |         AMAZON COGNITO        |   |              AMAZON S3             |
+       |  - User Pool & Groups         |   |  - Private Devices Bucket          |
+       |  - Cryptographic Public Keys  |   |  - Presigned Short-Lived PUT & GET |
+       +---------------+---------------+   +-----------------+------------------+
+                       │                                     │
+                       ▼                                     ▼
++-----------------------------------------------------------------------------------------+
+|                               EXPRESS BACKEND API GATEWAY                               |
+|                                                                                         |
+|  [Auth Middleware: aws-jwt-verify]   [Storage Service: @aws-sdk/client-s3]              |
+|  • Verifies RS256 token signatures   • HeadObject checks MIME & size (<3MB)             |
+|  • Enforces RBAC permissions         • Extracts image bytes for AI vision               |
+|                                                                                         |
+|                   [AI Service: @aws-sdk/client-bedrock-runtime]                         |
+|                   • Calls Amazon Bedrock Converse API (Claude 3)                        |
+|                   • Analyzes photo evidence + hardware condition                        |
+|                   • Enforces JSON schema: REPAIR, REUSE, RESALE, RECYCLE                |
++---------------------------------------------+-------------------------------------------+
+                                              │
+                              6. Store Passport & Timelines
+                                              ▼
+                             +---------------------------------+
+                             |         MONGODB DATABASE        |
+                             |  - Digital Device Passports     |
+                             |  - Immutable Audit Timelines    |
+                             |  - Concurrency-Locked Pickups   |
+                             |  - Citizen Rewards Ledger       |
+                             +---------------------------------+
+```
+
+### 3.3 Deep Dive on AWS Services Used
+
+| AWS Service | SDK Package | Role in E-Waste Passport | Architectural Rationale |
+| :--- | :--- | :--- | :--- |
+| **Amazon Bedrock** | `@aws-sdk/client-bedrock-runtime` | **Multimodal Computer Vision & AI Triage** | Ingests device photographs and reported condition parameters using the `ConverseCommand` API (Anthropic Claude 3). Automatically categorizes the hardware and generates an initial disposition recommendation (**REPAIR**, **REUSE**, **RESALE**, **RECYCLE**) along with data-sanitization instructions. |
+| **Amazon S3** | `@aws-sdk/client-s3`<br>`@aws-sdk/s3-request-presigner` | **Secure Zero-Exposure Private Image Storage** | Keeps database documents lightweight by storing device photos in a private S3 bucket. Employs **Presigned PUT URLs** allowing client browsers to upload directly to S3 within the `devices/${uuid}.${ext}` namespace. Validates file integrity, MIME types (`image/jpeg`, `image/png`), and payload size limits (<3MB) before database persistence. |
+| **Amazon Cognito** | `aws-jwt-verify` | **Enterprise Identity & Role-Based Access Control** | Authenticates users against an AWS Cognito User Pool. Verifies cryptographic RS256 JWT signatures against AWS JWKS endpoints. Maps Cognito user pool groups directly into the platform's three authorization boundaries: `citizen`, `collector`, and `admin`. |
+
+### 3.4 Hybrid Cloud Strategy (Production vs. Local Evaluation)
+
+To ensure this project is **100% resilient during hackathon judging and live demonstrations**, the codebase incorporates cloud abstraction layers:
+
+- **When AWS Credentials are Present:** The system automatically executes live Bedrock multimodal vision, live S3 presigned transfers, and live Cognito token authentication.
+- **When Evaluating Locally / Offline:** The backend uses built-in development adapters—including a local private upload mock, a deterministic advisory AI fallback, and server-side bcrypt authentication—ensuring the application never crashes or blocks device registration even if AWS cloud quotas or network connections are unavailable.
+
+---
+
+## 4. Verified Demo Accounts & Credentials
 
 The database comes pre-seeded with verified test accounts across all three roles. Passwords are encrypted using bcrypt (10 rounds):
 
@@ -64,7 +184,7 @@ The database comes pre-seeded with verified test accounts across all three roles
 
 ---
 
-## 4. Quick Start (Local Development)
+## 5. Quick Start (Local Development)
 
 ### Step 1: Clone & Install Dependencies
 
@@ -118,7 +238,7 @@ npm run dev
 
 ---
 
-## 5. Public Homepage & Navigation
+## 6. Public Homepage & Navigation
 
 The public homepage (`/`) has been completely redesigned with a high-trust circular-economy aesthetic:
 
@@ -133,7 +253,7 @@ The public homepage (`/`) has been completely redesigned with a high-trust circu
 
 ---
 
-## 6. Authentication Architecture & Security Boundaries
+## 7. Authentication Architecture & Security Boundaries
 
 ### Production Mode (Amazon Cognito User Pool)
 - Validates cryptographic JWT signatures via `CognitoJwtVerifier` against AWS JWKS keys.
@@ -151,7 +271,7 @@ The public homepage (`/`) has been completely redesigned with a high-trust circu
 
 ---
 
-## 7. Running Tests & Production Build
+## 8. Running Tests & Production Build
 
 ### Backend Test Suite (180 Tests across 12 Suites)
 
@@ -185,7 +305,7 @@ Compiles the application to production bundle in `dist/` with 0 errors.
 
 ---
 
-## 8. Three-Minute Demo Video Recording Script
+## 9. Three-Minute Demo Video Recording Script
 
 Follow this sequence to record a crisp, 3-minute video presentation:
 
@@ -242,7 +362,7 @@ Follow this sequence to record a crisp, 3-minute video presentation:
 
 ---
 
-## 9. Developer & Project Information
+## 10. Developer & Project Information
 
 - **Developer:** Sanesh Kumar
 - **GitHub:** [https://github.com/Sanesh764](https://github.com/Sanesh764)
@@ -252,6 +372,6 @@ Follow this sequence to record a crisp, 3-minute video presentation:
 
 ---
 
-## 10. License
+## 11. License
 
 This project is licensed under the ISC License.
