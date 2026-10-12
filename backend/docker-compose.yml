@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: .
+    container_name: ewaste-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env

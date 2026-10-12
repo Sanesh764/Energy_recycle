@@ -42,7 +42,7 @@ describe('Seed Data & Authoritative Source Integrity', () => {
       expect(roles).toContain('admin');
 
       const collector = DEMO_USERS.find((u) => u.role === 'collector');
-      expect(collector.servicePincodes).toEqual(['110001', '110002']);
+      expect(collector.servicePincodes).toEqual(['800020', '800022']);
     });
   });
 
