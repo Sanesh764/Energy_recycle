@@ -13,7 +13,7 @@ const PUBLISHED_IMPACT_FACTORS = [
     deviceType: 'PHONE',
     avgWeightKg: 0.2,
     recyclableShare: 0.8,
-    source: 'ITU / Global E-waste Monitor 2024 (UNU-KEY 0406: Mobile phones) - https://ewastemonitor.info'
+    source: 'ITU / Global E-waste Monitor 2026 (UNU-KEY 0406: Mobile phones) - https://ewastemonitor.info'
   },
   {
     deviceType: 'LAPTOP',
@@ -46,21 +46,21 @@ const DEMO_USERS = [
     name: 'Santosh Collector',
     email: 'santosh@gmail.com',
     role: 'collector',
-    servicePincodes: ['110001', '110002']
+    servicePincodes: ['800020', '800022']
   },
   {
     cognitoSub: 'dev-demo-collector-02',
     name: 'Collector Two',
     email: 'collector2@ewaste.local',
     role: 'collector',
-    servicePincodes: ['110001']
+    servicePincodes: ['80020']
   },
   {
     cognitoSub: 'dev-demo-collector-03',
     name: 'Collector Three',
     email: 'collector3@ewaste.local',
     role: 'collector',
-    servicePincodes: ['110002']
+    servicePincodes: ['800020']
   },
   {
     cognitoSub: 'dev-demo-citizen-01',

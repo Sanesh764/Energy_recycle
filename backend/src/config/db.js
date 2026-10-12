@@ -12,14 +12,9 @@ if (process.env.CUSTOM_DNS_SERVERS) {
   try {
     dns.setServers(['1.1.1.1', '8.8.8.8']);
   } catch (dnsErr) {
-    // Ignore in environments where setting DNS servers is restricted
   }
 }
 
-/**
- * Connect to MongoDB using validated MONGODB_URI.
- * Credentials and URI details are never printed to logs.
- */
 async function connectDB() {
   try {
     const conn = await mongoose.connect(env.MONGODB_URI);
