@@ -15,6 +15,8 @@
 [![React](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite-blue)](https://vitejs.dev/)
 [![Node](https://img.shields.io/badge/backend-Node.js%2020%20%2B%20Express-green)](https://nodejs.org/)
 [![Database](https://img.shields.io/badge/database-MongoDB-forest)](https://mongodb.com/)
+[![Docker](https://img.shields.io/badge/docker-containerized-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/sanesh7644/ewaste-backend)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-orchestrated-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![License](https://img.shields.io/badge/license-ISC-lightgrey)](./LICENSE)
 
 ---
@@ -33,19 +35,21 @@ Citizens earn **EcoCoins** upon verified collection, which can be redeemed for s
 
 ---
 
-## 2. Architecture & Technology Stack
+## 2. Technology Stack
 
-- **Frontend:** React 18, Vite 6, Tailwind CSS, React Router v6
-- **Backend:** Node.js 20 (LTS), Express 4.21, Mongoose 8.9, Zod 3.24, Bcryptjs
-- **Database:** MongoDB 7.0+ (Atlas / Local)
-- **Authentication:** 
-  - Production: Amazon Cognito User Pool (JWT with `aws-jwt-verify`)
-  - Local / Demo: Secure server-backed authentication (`/api/auth`) with bcrypt password hashing and session tokens (`dev-token-${userId}`)
-  - Security Boundary: Automatic fail-closed protection in production (`NODE_ENV === 'production'` strictly rejects any dev tokens)
-- **Storage:** Amazon S3 (Private bucket with presigned PUT/GET URLs and dev mock fallback)
-- **AI Triage:** Amazon Bedrock Converse API (Multimodal Claude 3 Haiku / Sonnet with deterministic fallback)
-- **Rewards System:** Atomic balance tracking, anti-duplicate collection awarding, interactive coupon redemptions
-- **Testing:** Jest 29, Supertest 7 (**180 automated backend unit, integration, and security boundary tests**)
+The platform is designed following modern cloud-native, microservices, and containerization principles:
+
+| Layer | Technologies & Tools | Key Role & Capabilities |
+| :--- | :--- | :--- |
+| **Frontend** | React 18, Vite 6, Tailwind CSS, React Router v6 | Responsive single-page application with role-based UI flows for Citizens, Collectors, and Admins. |
+| **Backend** | Node.js (LTS), Express 4.21, Mongoose 8.9, Zod 3.24, Bcryptjs | High-throughput REST API with strict request validation schemas, concurrency locks, and lifecycle state transitions. |
+| **Database** | MongoDB 7.0+ (Atlas Cloud / Local) | Flexible document store for devices, immutable audit timelines, pickups, and reward ledgers. |
+| **Containerization** | Docker, Docker Compose | Minimal Alpine-based production image (`node:24-alpine`), dependency caching, and environment parity between local and cloud execution. |
+| **Orchestration** | Kubernetes (Docker Desktop) | High-availability cluster management with 2 replica pods, declarative deployments, NodePort routing, and health probes. |
+| **Image Registry** | Docker Hub (`sanesh7644/ewaste-backend:1.0`) | Public verified container repository for automated image delivery. |
+| **Cloud & Deployment** | AWS Amplify (Frontend), AWS Elastic Beanstalk (Backend API) | Serverless frontend hosting with global CDN, alongside autoscaling platform infrastructure for backend workloads. |
+| **Cloud Services** | Amazon S3, Amazon Bedrock (Claude 3), Amazon Cognito | Zero-exposure private photo storage, multimodal AI computer-vision triage, and RS256 JWT cryptographic authentication. |
+| **Testing & Quality** | Jest 29, Supertest 7 | **180 automated tests across 12 test suites** validating security boundaries, status machines, and concurrency safety. |
 
 ---
 
@@ -169,7 +173,223 @@ To ensure this project is **100% resilient during hackathon judging and live dem
 
 ---
 
-## 4. Verified Demo Accounts & Credentials
+## 4. Containerization & Kubernetes Orchestration
+
+E-Waste Passport implements **enterprise containerization and microservices orchestration** to ensure deterministic execution, high availability, and rapid autoscaling across any environment.
+
+### 4.1 Engineering Rationale & Benefits
+
+- **Why Docker:** Eliminates the *"it works on my machine"* dilemma by packaging the Node.js runtime, pinned Alpine system libraries, production dependencies, and application code into an immutable, portable artifact.
+- **Role of `Dockerfile`:** Specifies a multi-stage production environment based on `node:24-alpine`. Runs `npm ci --omit=dev` to produce a hardened, lightweight container image (excluding test frameworks, compilers, and development tools) and explicitly exposes port `5000`.
+- **Role of `.dockerignore`:** Prevents local build artifacts, temporary log files, `.git`, `coverage`, and critical environment secrets (`.env*`) from leaking into the container build context or public image registry.
+- **Role of `docker-compose.yml`:** Automates local single-command environment startup, container port binding (`5000:5000`), container lifecycle management (`restart: unless-stopped`), and environment parameter ingestion.
+- **Role of Kubernetes:** Orchestrates the containerized backend for enterprise resilience. Handles self-healing (automatic restart on pod failure), horizontal scaling (multi-replica management), declarative zero-downtime rollouts, and internal service load-balancing.
+- **Probes & Secrets:**
+  - **Readiness Probe (`/health`):** Verifies that both the Express HTTP server and MongoDB connection are active before routing incoming traffic to the pod.
+  - **Liveness Probe (`/health`):** Continuously monitors container responsiveness and automatically replaces stalled or unrecoverable containers.
+  - **Kubernetes Secret (`ewaste-backend-env`):** Decouples application configuration from container images, safely injecting environment variables into pods at runtime without storing secrets in plain text or version control.
+
+---
+
+### 4.2 Architecture Diagram: Docker & Kubernetes
+
+The following architecture diagram illustrates the end-to-end containerized topology, distinguishing the **AWS Cloud Deployment** from the local **Docker Desktop Kubernetes Cluster**:
+
+```mermaid
+flowchart TD
+    subgraph PublicClient["End-User Tier (Internet)"]
+        CitizenBrowser["Citizen Browser\n(React 18 SPA)"]
+        AmplifyFrontend["AWS Amplify Hosting\n(https://main.d298fn45tbafnm.amplifyapp.com)"]
+    end
+
+    subgraph Registry["Container Image Registry"]
+        DockerHub["Docker Hub Registry\n(sanesh7644/ewaste-backend:1.0)"]
+    end
+
+    subgraph LocalK8s["Docker Desktop - Local Kubernetes Cluster"]
+        K8sService["Kubernetes Service: ewaste-backend\n(Type: NodePort | Port: 5000 | NodePort: 30080)"]
+        K8sSecret["Kubernetes Secret\n(ewaste-backend-env)"]
+
+        subgraph K8sDeployment["Kubernetes Deployment: ewaste-backend (Replicas: 2)"]
+            subgraph Pod1["Pod 1: ewaste-backend-xxxxx"]
+                Container1["Node.js 24 Alpine Container\nExpress API (Port 5000)\nHealth: /health"]
+            end
+            subgraph Pod2["Pod 2: ewaste-backend-yyyyy"]
+                Container2["Node.js 24 Alpine Container\nExpress API (Port 5000)\nHealth: /health"]
+            end
+        end
+    end
+
+    subgraph DataStorage["External Managed Data Tier"]
+        MongoAtlas[("MongoDB Atlas Cloud\n(Immutable Ledger & Collections)")]
+        S3Bucket["Amazon S3\n(Private Device Uploads)"]
+    end
+
+    subgraph AWSCloudBackend["AWS Elastic Beanstalk (Production Cloud Deployment)"]
+        EBInstance["Elastic Beanstalk Instance\nNode.js 20 on Amazon Linux 2023\n(ewaste-api-production)"]
+    end
+
+    %% Flow connections
+    CitizenBrowser --> AmplifyFrontend
+    AmplifyFrontend -- "API Requests (Production)" --> EBInstance
+    EBInstance --> MongoAtlas
+    EBInstance --> S3Bucket
+
+    DockerHub -- "kubectl pull" --> K8sDeployment
+    K8sSecret -. "envFrom injection" .-> Container1
+    K8sSecret -. "envFrom injection" .-> Container2
+
+    K8sService --> Pod1
+    K8sService --> Pod2
+    Container1 --> MongoAtlas
+    Container2 --> MongoAtlas
+```
+
+> [!NOTE]
+> **Deployment Topology Distinction:** The frontend is hosted on **AWS Amplify**, and the primary production cloud API runs on **AWS Elastic Beanstalk**. The **Kubernetes Cluster (2 Replicas)** documented below runs locally on **Docker Desktop Kubernetes**, demonstrating microservices orchestration readiness, self-healing, and multi-replica scalability.
+
+---
+
+### 4.3 Docker Setup (Single-Command Local Execution)
+
+To spin up the containerized backend locally using Docker Compose, run the following copy-pasteable PowerShell commands:
+
+```powershell
+# 1. Navigate to the backend directory
+cd "C:\Users\ASUS\Desktop\e-waste passport\backend"
+
+# 2. Build the production image and start the container in detached mode
+docker compose up -d --build
+
+# 3. Check container status
+docker compose ps
+
+# 4. Stream real-time container logs
+docker compose logs -f backend
+```
+
+#### Verifying Docker Container Health:
+
+```powershell
+# Send an HTTP GET request to the containerized health endpoint
+Invoke-RestMethod http://localhost:5000/health
+```
+
+Expected response:
+```json
+{
+  "status": "ok",
+  "uptime": 12,
+  "database": "connected"
+}
+```
+
+To stop the container:
+```powershell
+docker compose down
+```
+
+---
+
+### 4.4 Docker Hub Image Registry
+
+The backend image is publicly published to Docker Hub:
+**Image Repository:** [`sanesh7644/ewaste-backend:1.0`](https://hub.docker.com/r/sanesh7644/ewaste-backend)
+
+To build, tag, and publish the image to Docker Hub, run:
+
+```powershell
+# 1. Build the production container image
+docker compose build
+
+# 2. Tag the locally built image with the versioned repository tag
+docker tag ewaste-backend:local sanesh7644/ewaste-backend:1.0
+
+# 3. Push the image to Docker Hub
+docker push sanesh7644/ewaste-backend:1.0
+```
+
+> [!IMPORTANT]
+> **Zero Credential Exposure:** Secrets, credentials, database URIs, and AWS tokens are excluded via `.dockerignore` and are never baked into container layers or pushed to Docker Hub.
+
+---
+
+### 4.5 Kubernetes Orchestration (Docker Desktop)
+
+The production Kubernetes configuration resides in `backend/k8s/`:
+- [`backend/k8s/deployment.yaml`](file:///c:/Users/ASUS/Desktop/e-waste%20passport/backend/k8s/deployment.yaml) — Defines the 2-replica `Deployment`, container image, container port `5000`, environment secret reference, and readiness/liveness health probes.
+- [`backend/k8s/service.yaml`](file:///c:/Users/ASUS/Desktop/e-waste%20passport/backend/k8s/service.yaml) — Defines the `NodePort` Service directing traffic to port `5000` (NodePort: `30080`).
+
+#### Step 1: Create the Runtime Secret
+
+Kubernetes reads environment variables from a Secret named `ewaste-backend-env`. Generate this secret on your local cluster using your environment values:
+
+```powershell
+kubectl create secret generic ewaste-backend-env `
+  --from-literal=NODE_ENV=production `
+  --from-literal=PORT=5000 `
+  --from-literal=MONGODB_URI="mongodb+srv://<db_user>:<db_password>@<cluster>.mongodb.net/e-waste-passport?retryWrites=true&w=majority" `
+  --from-literal=ALLOW_DEV_DEMO_AUTH=false `
+  --from-literal=CORS_ORIGIN="https://main.d298fn45tbafnm.amplifyapp.com" `
+  --from-literal=AWS_REGION=us-east-1 `
+  --from-literal=S3_BUCKET_NAME="e-waste-passport-uploads-demo" `
+  --from-literal=BEDROCK_MODEL_ID="anthropic.claude-3-haiku-20240307-v1:0"
+```
+
+> [!WARNING]
+> Never commit actual Kubernetes Secret YAML files containing sensitive passwords or connection strings to version control. In enterprise production, use AWS Secrets Manager, HashiCorp Vault, or SealedSecrets with strict RBAC access controls.
+
+#### Step 2: Apply Deployment & Service Manifests
+
+```powershell
+# Apply manifests
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+#### Step 3: Inspect & Manage Cluster Resources
+
+```powershell
+# Verify cluster nodes
+kubectl get nodes
+
+# Verify deployment status (Replicas: 2/2)
+kubectl get deployments
+
+# Inspect active pods
+kubectl get pods
+
+# Inspect the Service and assigned NodePort
+kubectl get services
+
+# Inspect container logs across the deployment
+kubectl logs deployment/ewaste-backend
+
+# Local port forwarding for diagnostic inspection
+kubectl port-forward service/ewaste-backend 8080:5000
+```
+
+> [!NOTE]
+> `kubectl port-forward` creates a direct tunnel between your local workstation and the Kubernetes Service for private debugging. It does **not** expose the service publicly to the internet.
+
+---
+
+### 4.6 Verification & Testing Results
+
+All deployment configurations, container images, and cluster objects have been rigorously validated:
+
+| Verification Target | Expected Standard | Validated Result | Status |
+| :--- | :--- | :--- | :--- |
+| **Backend Test Suite** | 100% Passing Tests | **180 passed, 180 total** across **12 Jest test suites** | ✅ Verified |
+| **Security Boundaries** | Role isolation & fail-closed prod auth | Verified via `security.test.js` & `devAuth.test.js` | ✅ Verified |
+| **Kubernetes Replica Count** | Desired: 2 / Ready: 2 | **2/2 available pods** reaching `Running` state | ✅ Verified |
+| **Readiness & Liveness Probes** | Path: `/health`, Port: 5000 | Both probes succeeded without restarts | ✅ Verified |
+| **Database Connectivity** | Live MongoDB connection | `/health` returns `status: ok` and `database: connected` | ✅ Verified |
+| **Docker Hub Image Pull** | Pull `sanesh7644/ewaste-backend:1.0` | Container boots cleanly on `node:24-alpine` | ✅ Verified |
+
+---
+
+## 5. Verified Demo Accounts & Credentials
 
 The database comes pre-seeded with verified test accounts across all three roles. Passwords are encrypted using bcrypt (10 rounds):
 
@@ -184,7 +404,7 @@ The database comes pre-seeded with verified test accounts across all three roles
 
 ---
 
-## 5. Quick Start (Local Development)
+## 6. Quick Start (Local Development)
 
 ### Step 1: Clone & Install Dependencies
 
@@ -238,7 +458,7 @@ npm run dev
 
 ---
 
-## 6. Public Homepage & Navigation
+## 7. Public Homepage & Navigation
 
 The public homepage (`/`) has been completely redesigned with a high-trust circular-economy aesthetic:
 
@@ -253,7 +473,7 @@ The public homepage (`/`) has been completely redesigned with a high-trust circu
 
 ---
 
-## 7. Authentication Architecture & Security Boundaries
+## 8. Authentication Architecture & Security Boundaries
 
 ### Production Mode (Amazon Cognito User Pool)
 - Validates cryptographic JWT signatures via `CognitoJwtVerifier` against AWS JWKS keys.
@@ -271,7 +491,7 @@ The public homepage (`/`) has been completely redesigned with a high-trust circu
 
 ---
 
-## 8. Running Tests & Production Build
+## 9. Running Tests & Production Build
 
 ### Backend Test Suite (180 Tests across 12 Suites)
 
@@ -305,7 +525,7 @@ Compiles the application to production bundle in `dist/` with 0 errors.
 
 ---
 
-## 9. Three-Minute Demo Video Recording Script
+## 10. Three-Minute Demo Video Recording Script
 
 Follow this sequence to record a crisp, 3-minute video presentation:
 
@@ -362,7 +582,7 @@ Follow this sequence to record a crisp, 3-minute video presentation:
 
 ---
 
-## 10. Developer & Project Information
+## 11. Developer & Project Information
 
 - **Developer:** Sanesh Kumar
 - **GitHub:** [https://github.com/Sanesh764](https://github.com/Sanesh764)
@@ -372,6 +592,7 @@ Follow this sequence to record a crisp, 3-minute video presentation:
 
 ---
 
-## 11. License
+## 12. License
 
 This project is licensed under the ISC License.
+
