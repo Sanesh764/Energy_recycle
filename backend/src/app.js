@@ -79,6 +79,23 @@ app.use(
 // Body parser
 app.use(express.json({ limit: '1mb' }));
 
+// Ensure database connection is active before handling requests (required for Vercel/serverless runtimes)
+app.use(async (req, res, next) => {
+  // Skip DB connection for test suite or when mongoose is already connected
+  const mongoose = require('mongoose');
+  if (process.env.NODE_ENV === 'test' || mongoose.connection.readyState === 1) {
+    return next();
+  }
+  try {
+    const { connectDB } = require('./config/db');
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('Database connection middleware failed:', err.message);
+    res.status(500).json({ error: 'Database connection failed. Please check MongoDB configuration.' });
+  }
+});
+
 // Routes (SPEC.md Section 8)
 app.use('/api/auth', authRoutes);
 app.use('/api/uploads', uploadRoutes);

@@ -16,13 +16,27 @@ if (process.env.CUSTOM_DNS_SERVERS) {
 }
 
 async function connectDB() {
+  // readyState: 1 = connected, 2 = connecting
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+  if (mongoose.connection.readyState === 2) {
+    // Wait for in-flight connection
+    await new Promise((resolve) => mongoose.connection.once('connected', resolve));
+    return mongoose.connection;
+  }
+
   try {
-    const conn = await mongoose.connect(env.MONGODB_URI);
+    const conn = await mongoose.connect(env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 8000,
+      bufferCommands: false
+    });
     if (env.NODE_ENV !== 'test') {
       console.log(`MongoDB connected: ${conn.connection.host}`);
     }
     return conn;
   } catch (error) {
+
     if (env.NODE_ENV === 'development') {
       try {
         console.warn('Primary MongoDB URI connection failed, falling back to local MongoDB (mongodb://127.0.0.1:27017/e-waste-passport)...');
