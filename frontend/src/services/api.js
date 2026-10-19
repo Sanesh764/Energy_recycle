@@ -163,3 +163,12 @@ export const rewardsApi = {
       body: JSON.stringify({ couponId }),
     }),
 };
+
+export const aiApi = {
+  chat: ({ message, history = [] }) =>
+    request('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+};
+

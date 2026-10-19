@@ -1,11 +1,15 @@
 const {
   analyzeDevice,
+  chatWithAssistant,
+  getFallbackChatReply,
   parseAndValidateAiResponse,
   buildSystemPrompt,
   buildUserMessage,
   setBedrockClient,
   FALLBACK_AI_RESULT
 } = require('../src/services/ai');
+const request = require('supertest');
+const app = require('../src/app');
 
 describe('AI Service (Amazon Bedrock Converse API)', () => {
   let mockBedrockClient;
@@ -160,5 +164,70 @@ describe('AI Service (Amazon Bedrock Converse API)', () => {
     expect(result.status).toBe('FALLBACK');
     expect(result.suggestedOutcome).toBe('RECYCLE');
     expect(result.reason).toBe('We could not analyse this device. The collector will check it.');
+  });
+
+  describe('chatWithAssistant (Conversational Bedrock AI)', () => {
+    test('chat returns bedrock reply when ConverseCommand succeeds', async () => {
+      mockBedrockClient.send.mockResolvedValueOnce({
+        output: {
+          message: {
+            content: [{ text: 'To wipe your iPhone, go to Settings > General > Transfer or Reset iPhone.' }]
+          }
+        }
+      });
+
+      const response = await chatWithAssistant({
+        message: 'How do I erase an iPhone?'
+      });
+
+      expect(response.source).toBe('bedrock');
+      expect(response.reply).toContain('Transfer or Reset iPhone');
+      expect(mockBedrockClient.send).toHaveBeenCalledTimes(1);
+    });
+
+    test('chat returns knowledge-base fallback when Bedrock call fails', async () => {
+      mockBedrockClient.send.mockRejectedValueOnce(new Error('AccessDeniedException'));
+
+      const response = await chatWithAssistant({
+        message: 'How does e-waste collection work?'
+      });
+
+      expect(response.source).toBe('fallback');
+      expect(response.reply).toContain('5-stage lifecycle');
+    });
+
+    test('chat throws an error if message is missing or empty', async () => {
+      await expect(chatWithAssistant({ message: '' })).rejects.toThrow('Message is required');
+      await expect(chatWithAssistant({ message: null })).rejects.toThrow('Message is required');
+    });
+  });
+
+  describe('POST /api/ai/chat route', () => {
+    test('returns 200 with Bedrock response when successful', async () => {
+      mockBedrockClient.send.mockResolvedValueOnce({
+        output: {
+          message: {
+            content: [{ text: 'You earn 50 green coins per collected device.' }]
+          }
+        }
+      });
+
+      const res = await request(app)
+        .post('/api/ai/chat')
+        .send({ message: 'How do rewards work?' })
+        .expect(200);
+
+      expect(res.body.source).toBe('bedrock');
+      expect(res.body.reply).toContain('50 green coins');
+    });
+
+    test('returns 400 when message is missing or empty', async () => {
+      const res = await request(app)
+        .post('/api/ai/chat')
+        .send({ message: '   ' })
+        .expect(400);
+
+      expect(res.body.error).toContain('Message is required');
+    });
   });
 });

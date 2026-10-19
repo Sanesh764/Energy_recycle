@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { SparklesIcon, CloseIcon, CheckCircleIcon, ArrowRightIcon } from './ui/Icons';
+import React, { useState, useRef, useEffect } from 'react';
+import { SparklesIcon, CloseIcon, ArrowRightIcon } from './ui/Icons';
+import { aiApi } from '../services/api';
 
 const KNOWLEDGE_BASE = [
   {
@@ -29,43 +30,83 @@ export function AiAssistant() {
   const [messages, setMessages] = useState([
     {
       sender: 'assistant',
-      text: 'Hello! I am your E-Waste Guide. Ask me anything about preparing devices, tracking your passport, collection slots, or earning green rewards.',
+      text: 'Hello! I am your E-Waste Guide powered by Amazon Bedrock. Ask me anything about preparing devices, tracking your passport, collection slots, or earning green rewards.',
+      source: 'system'
     },
   ]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [messages, isOpen, isLoading]);
+
+  const sendQuery = async (queryText) => {
+    const query = queryText.trim();
+    if (!query || isLoading) return;
+
+    // Append user message immediately
+    const userMsg = { sender: 'user', text: query };
+    const currentHistory = [...messages, userMsg];
+    setMessages(currentHistory);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      // Call backend AI chat endpoint (powered by Amazon Bedrock Converse API)
+      const res = await aiApi.chat({
+        message: query,
+        history: messages.slice(-4),
+      });
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'assistant',
+          text: res.reply || 'I could not generate a response. Please try again.',
+          source: res.source || 'bedrock',
+        },
+      ]);
+    } catch (err) {
+      console.warn('Backend AI chat error, using local fallback:', err.message);
+
+      // Local graceful fallback if backend is unreachable or in offline mode
+      const matched = KNOWLEDGE_BASE.find(
+        (k) =>
+          k.q.toLowerCase().includes(query.toLowerCase()) ||
+          (query.toLowerCase().includes('wipe') && k.q.includes('prepare')) ||
+          (query.toLowerCase().includes('reward') && k.q.includes('reward')) ||
+          (query.toLowerCase().includes('collect') && k.q.includes('collection')) ||
+          (query.toLowerCase().includes('accept') && k.q.includes('accepted'))
+      );
+
+      const reply = matched
+        ? matched.a
+        : `Regarding "${query}": E-Waste Passport provides verified doorstep pickups for old electronics, AI triage for disposition (Repair, Reuse, Resale, Recycle), and 50 reward coins upon collection handover. Please refer to your passport timeline or select a quick topic below.`;
+
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'assistant', text: reply, source: 'fallback' },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSelectFaq = (faq) => {
-    setMessages((prev) => [
-      ...prev,
-      { sender: 'user', text: faq.q },
-      { sender: 'assistant', text: faq.a },
-    ]);
+    sendQuery(faq.q);
   };
 
   const handleSend = (e) => {
     e.preventDefault();
-    const query = input.trim();
-    if (!query) return;
-
-    const matched = KNOWLEDGE_BASE.find(
-      (k) =>
-        k.q.toLowerCase().includes(query.toLowerCase()) ||
-        query.toLowerCase().includes('wipe') && k.q.includes('prepare') ||
-        query.toLowerCase().includes('reward') && k.q.includes('reward') ||
-        query.toLowerCase().includes('collect') && k.q.includes('collection') ||
-        query.toLowerCase().includes('accept') && k.q.includes('accepted')
-    );
-
-    const reply = matched
-      ? matched.a
-      : `Regarding "${query}": E-Waste Passport provides verified doorstep pickups for old electronics, AI triage for disposition (Repair, Reuse, Resale, Recycle), and 50 reward coins upon collection handover. Please refer to your passport timeline or select a quick topic below.`;
-
-    setMessages((prev) => [
-      ...prev,
-      { sender: 'user', text: query },
-      { sender: 'assistant', text: reply },
-    ]);
-    setInput('');
+    sendQuery(input);
   };
 
   return (
@@ -92,7 +133,7 @@ export function AiAssistant() {
               <div>
                 <h3 className="text-sm font-bold leading-tight">E-Waste Assistant</h3>
                 <span className="text-[10px] font-mono text-emerald-400 block">
-                  Advisory Guide & Knowledge Base
+                  Amazon Bedrock • Converse API
                 </span>
               </div>
             </div>
@@ -108,12 +149,13 @@ export function AiAssistant() {
 
           {/* Quick FAQ Chips */}
           <div className="p-3 bg-zinc-50 border-b border-zinc-100 flex gap-1.5 overflow-x-auto text-[11px] font-mono scrollbar-none">
-            {KNOWLEDGE_BASE.slice(0, 3).map((item, idx) => (
+            {KNOWLEDGE_BASE.slice(0, 4).map((item, idx) => (
               <button
                 key={idx}
                 type="button"
+                disabled={isLoading}
                 onClick={() => handleSelectFaq(item)}
-                className="whitespace-nowrap px-2.5 py-1 bg-white border border-zinc-200 hover:border-forest-700 rounded-full text-zinc-700 hover:text-forest-900 transition-colors"
+                className="whitespace-nowrap px-2.5 py-1 bg-white border border-zinc-200 hover:border-forest-700 disabled:opacity-50 rounded-full text-zinc-700 hover:text-forest-900 transition-colors"
               >
                 {item.q.split(' ')[0]} {item.q.split(' ')[1]}...
               </button>
@@ -125,7 +167,7 @@ export function AiAssistant() {
             {messages.map((m, idx) => (
               <div
                 key={idx}
-                className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
                   className={`max-w-[85%] rounded-2xl p-3 leading-relaxed whitespace-pre-line ${
@@ -136,8 +178,21 @@ export function AiAssistant() {
                 >
                   {m.text}
                 </div>
+                {m.source && m.sender === 'assistant' && m.source !== 'system' && (
+                  <span className="text-[9px] font-mono text-zinc-400 mt-1 px-1">
+                    {m.source === 'bedrock' ? '⚡ Amazon Bedrock' : '📚 Knowledge Base'}
+                  </span>
+                )}
               </div>
             ))}
+
+            {isLoading && (
+              <div className="flex items-center gap-2 text-zinc-500 bg-zinc-50 rounded-2xl p-3 border border-zinc-200/50 w-fit">
+                <SparklesIcon className="w-3.5 h-3.5 text-forest-700 animate-spin" />
+                <span className="text-[11px] font-mono animate-pulse">Thinking with Bedrock...</span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Chat Input */}
@@ -147,14 +202,16 @@ export function AiAssistant() {
           >
             <input
               type="text"
-              placeholder="Ask about pickups, wiping data, rewards..."
+              placeholder="Ask anything about e-waste, data wipe, rewards..."
               value={input}
+              disabled={isLoading}
               onChange={(e) => setInput(e.target.value)}
-              className="flex-1 text-xs border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-forest-800"
+              className="flex-1 text-xs border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-forest-800 disabled:opacity-60"
             />
             <button
               type="submit"
-              className="p-2 bg-forest-900 text-white rounded-xl hover:bg-forest-950 transition-colors"
+              disabled={isLoading || !input.trim()}
+              className="p-2 bg-forest-900 text-white rounded-xl hover:bg-forest-950 transition-colors disabled:opacity-50"
               aria-label="Send query"
             >
               <ArrowRightIcon className="w-4 h-4" />

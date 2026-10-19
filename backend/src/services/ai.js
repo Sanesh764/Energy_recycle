@@ -243,8 +243,165 @@ async function analyzeDevice({ type, ageYears, powersOn, damage, notes, photoByt
   }
 }
 
+const CHAT_SYSTEM_PROMPT = [
+  {
+    text: `You are the E-Waste Passport AI Guide, an intelligent sustainability and circular economy assistant for the E-Waste Passport platform.
+Your mission is to assist citizens, refurbishers, and collectors with:
+1. Safe e-waste disposal, data wiping, and battery safety procedures.
+2. Explaining the 5-step lifecycle: Register -> AI Triage (Repair, Reuse, Resale, Recycle) -> Doorstep Pickup -> Authorized Inspection -> Certified Outcome.
+3. Earning and redeeming Green Rewards (+50 coins per collected device).
+4. Accepting devices: phones, laptops, appliances, TVs, batteries, cables, and IT accessories.
+5. Clarifying that AI triage suggestions are advisory; certified field inspection is authoritative.
+
+Guidelines:
+- Provide clear, helpful, concise answers in natural English (under 120 words unless a detailed step-by-step is requested).
+- Use bullet points when presenting multi-step instructions (e.g. data wiping).
+- Remain strictly focused on electronics, recycling, device diagnostics, sustainability, and E-Waste Passport platform features.
+- If asked about unrelated topics, politely redirect back to e-waste management and device recycling.`
+  }
+];
+
+const FALLBACK_KNOWLEDGE = [
+  {
+    keywords: ['how', 'work', 'process', 'steps', 'collection', 'cycle', 'flow'],
+    reply: `E-Waste Passport operates with a verified 5-stage lifecycle:
+1. Register Device: Upload a photo, specify age, and report condition.
+2. AI Triage: Amazon Bedrock suggests Repair, Reuse, Resale, or Recycle.
+3. Schedule Pickup: Choose a convenient date and time slot for doorstep collection.
+4. Physical Inspection: An authorized technician conducts diagnostic verification.
+5. Certified Disposition: The collector confirms the final lifecycle status and issues a tamper-proof digital passport.`
+  },
+  {
+    keywords: ['wipe', 'data', 'prepare', 'reset', 'privacy', 'security', 'delete', 'clean'],
+    reply: `To safely prepare your device before pickup:
+• Back up all personal files, photos, and accounts to cloud or external storage.
+• Sign out of Apple ID, Google Account, or Microsoft accounts.
+• Perform a full factory reset (Settings > System > Reset > Erase All Content).
+• Remove SIM cards, micro-SD cards, and aftermarket phone cases.
+• Safety notice: Never puncture or compress swollen lithium-ion battery packs.`
+  },
+  {
+    keywords: ['reward', 'coin', 'points', 'earn', 'redeem', 'money', 'wallet'],
+    reply: `Green Rewards System:
+• Earning: You automatically earn +50 Green Reward Coins when an authorized collector completes pickup at your doorstep.
+• Anti-Fraud: Only one reward credit is awarded per unique device passport.
+• Redemption: Use your points in the Rewards Wallet for eco-friendly coupons, transport passes, and refurbishment vouchers.`
+  },
+  {
+    keywords: ['accept', 'type', 'item', 'device', 'what can', 'category', 'categories'],
+    reply: `Accepted Device Categories:
+• Smartphones & Tablets
+• Laptops & Desktop Computers
+• Monitors & Flat-Panel Televisions
+• Batteries, Chargers & Power Supplies
+• Printers, Networking Gear & Accessories
+Each item receives its own unique digital tracking passport.`
+  },
+  {
+    keywords: ['ai', 'accurate', 'decision', 'final', 'guarantee', 'binding', 'suggest'],
+    reply: `The AI triage recommendation provided by Amazon Bedrock is strictly advisory. Because software cannot test internal circuit boards or micro-soldering, an authorized collector conducts the physical inspection before recording the authoritative final outcome.`
+  }
+];
+
+function getFallbackChatReply(query) {
+  const lower = query.toLowerCase();
+  for (const item of FALLBACK_KNOWLEDGE) {
+    if (item.keywords.some(k => lower.includes(k))) {
+      return item.reply;
+    }
+  }
+  return `Thank you for reaching out to E-Waste Passport! I can assist with:
+• Safe data sanitization and factory reset guidelines
+• Doorstep e-waste pickup scheduling and status tracking
+• How AI triage determines Repair, Reuse, Resale, or Recycle
+• Earning and redeeming Green Reward coins (+50 per collected device)
+• Accepted electronic equipment categories
+
+Please ask a specific question or describe your electronic device!`;
+}
+
+/**
+ * Chat with E-Waste AI Guide using Amazon Bedrock Converse API.
+ * Falls back to knowledge-base responses if Bedrock fails or credentials are not configured.
+ *
+ * @param {object} params
+ * @param {string} params.message - The user's query
+ * @param {Array<{sender: string, text: string}>} [params.history] - Optional conversation history
+ * @returns {Promise<{reply: string, source: 'bedrock'|'fallback', modelId?: string|null}>}
+ */
+async function chatWithAssistant({ message, history = [] }) {
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    throw new Error('Message is required and cannot be empty');
+  }
+
+  const trimmedMessage = message.trim();
+  const conversationMessages = [];
+
+  // Build alternating user/assistant messages for Converse API
+  if (Array.isArray(history) && history.length > 0) {
+    let expectedRole = 'user';
+    for (const h of history.slice(-6)) {
+      const role = h.sender === 'user' ? 'user' : 'assistant';
+      if (role === expectedRole && h.text && typeof h.text === 'string' && h.text.trim()) {
+        conversationMessages.push({
+          role,
+          content: [{ text: h.text.trim() }]
+        });
+        expectedRole = expectedRole === 'user' ? 'assistant' : 'user';
+      }
+    }
+  }
+
+  // Ensure history ends with user role for Bedrock Converse API
+  if (conversationMessages.length > 0 && conversationMessages[conversationMessages.length - 1].role === 'user') {
+    conversationMessages[conversationMessages.length - 1].content[0].text += `\n\n${trimmedMessage}`;
+  } else {
+    conversationMessages.push({
+      role: 'user',
+      content: [{ text: trimmedMessage }]
+    });
+  }
+
+  try {
+    const command = new ConverseCommand({
+      modelId: env.BEDROCK_MODEL_ID,
+      messages: conversationMessages,
+      system: CHAT_SYSTEM_PROMPT,
+      inferenceConfig: {
+        maxTokens: 500,
+        temperature: 0.3
+      }
+    });
+
+    const response = await bedrockClient.send(command, {
+      abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS)
+    });
+
+    const reply = response.output?.message?.content?.[0]?.text;
+    if (reply && reply.trim()) {
+      return {
+        reply: reply.trim(),
+        source: 'bedrock',
+        modelId: env.BEDROCK_MODEL_ID
+      };
+    }
+  } catch (err) {
+    // Bedrock error, timeout, or missing credentials -> fallback
+    console.warn('Bedrock chat failed, using fallback response:', err.message);
+  }
+
+  const fallbackReply = getFallbackChatReply(trimmedMessage);
+  return {
+    reply: fallbackReply,
+    source: 'fallback',
+    modelId: null
+  };
+}
+
 module.exports = {
   analyzeDevice,
+  chatWithAssistant,
+  getFallbackChatReply,
   parseAndValidateAiResponse,
   buildSystemPrompt,
   buildUserMessage,
@@ -254,3 +411,4 @@ module.exports = {
   ALLOWED_OUTCOMES,
   AI_TIMEOUT_MS
 };
+

@@ -8,6 +8,7 @@ const pickupRoutes = require('./routes/pickups');
 const adminRoutes = require('./routes/admin');
 const { router: rewardRoutes } = require('./routes/rewards');
 const authRoutes = require('./routes/auth');
+const aiRoutes = require('./routes/ai');
 const { notFoundHandler, errorHandler } = require('./middleware/errors');
 
 const app = express();
@@ -98,6 +99,7 @@ app.use(async (req, res, next) => {
 
 // Routes (SPEC.md Section 8)
 app.use('/api/auth', authRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/pickups', pickupRoutes);
