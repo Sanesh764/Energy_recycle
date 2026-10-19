@@ -6,6 +6,7 @@ const { requireRole } = require('../middleware/roles');
 const { Pickup, Device, User, RewardTransaction } = require('../models');
 const statusMachine = require('../services/statusMachine');
 const { inspectDevice, completeDevice } = require('../services/deviceOperations');
+const { invalidateDeviceCaches } = require('../services/cache');
 
 const router = express.Router();
 
@@ -112,6 +113,8 @@ router.post('/:id/accept', authenticate, requireRole('collector'), async (req, r
     );
     await device.save();
 
+    await invalidateDeviceCaches(device.ownerId);
+
     res.status(200).json({ pickup, device });
   } catch (error) {
     next(error);
@@ -195,6 +198,8 @@ router.post('/:id/collected', authenticate, requireRole('collector'), async (req
 
     await device.save();
 
+    await invalidateDeviceCaches(device.ownerId);
+
     res.status(200).json({ pickup, device });
   } catch (error) {
     next(error);
@@ -213,6 +218,7 @@ router.post('/:id/inspect', authenticate, requireRole('collector'), async (req, 
       user: req.user,
       body: req.body
     });
+    await invalidateDeviceCaches(result.device?.ownerId);
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -230,6 +236,7 @@ router.post('/:id/complete', authenticate, requireRole('collector', 'admin'), as
       pickupId: req.params.id,
       user: req.user
     });
+    await invalidateDeviceCaches(result.device?.ownerId);
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -285,6 +292,8 @@ router.post('/:id/cancel', authenticate, requireRole('citizen'), async (req, res
       })
     );
     await device.save();
+
+    await invalidateDeviceCaches(device.ownerId);
 
     res.status(200).json({ pickup, device });
   } catch (error) {

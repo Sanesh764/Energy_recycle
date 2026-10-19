@@ -1,3 +1,4 @@
+
 services:
   backend:
     build: .
@@ -5,5 +6,24 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID:-}
+      - COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID:-}
     env_file:
       - .env
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: ewaste-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:

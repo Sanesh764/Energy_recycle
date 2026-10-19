@@ -1,5 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const { getCachedJson, setCachedJson, deleteCache, invalidateDeviceCaches } = require('../services/cache');
 const { z } = require('zod');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
@@ -191,6 +192,8 @@ router.post('/', authenticate, requireRole('citizen'), async (req, res, next) =>
     const responseData = device.toObject();
     responseData.photoUrl = photoUrl;
 
+    await invalidateDeviceCaches(req.user._id);
+
     res.status(201).json(responseData);
   } catch (error) {
     next(error);
@@ -268,6 +271,8 @@ router.post('/:id/pickup', authenticate, requireRole('citizen'), async (req, res
     );
     await device.save();
 
+    await invalidateDeviceCaches(device.ownerId);
+
     res.status(201).json({ pickup, device });
   } catch (error) {
     next(error);
@@ -324,6 +329,8 @@ router.post('/:id/cancel', authenticate, requireRole('citizen'), async (req, res
     );
     await device.save();
 
+    await invalidateDeviceCaches(device.ownerId);
+
     res.status(200).json({ device, pickup });
   } catch (error) {
     next(error);
@@ -343,6 +350,7 @@ router.post('/:id/inspect', authenticate, requireRole('collector'), async (req, 
       user: req.user,
       body: req.body
     });
+    await invalidateDeviceCaches(result.device?.ownerId);
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -360,6 +368,7 @@ router.post('/:id/complete', authenticate, requireRole('collector', 'admin'), as
       deviceId: req.params.id,
       user: req.user
     });
+    await invalidateDeviceCaches(result.device?.ownerId);
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -373,6 +382,12 @@ router.post('/:id/complete', authenticate, requireRole('collector', 'admin'), as
  */
 router.get('/', authenticate, async (req, res, next) => {
   try {
+    const cacheKey = `devices:list:${req.user.role}:${req.user._id}`;
+    const cachedDevices = await getCachedJson(cacheKey);
+    if (cachedDevices !== null) {
+      res.set('X-Cache', 'HIT');
+      return res.status(200).json(cachedDevices);
+    }
     let query = {};
 
     if (req.user.role === 'citizen') {
@@ -399,7 +414,8 @@ router.get('/', authenticate, async (req, res, next) => {
         return obj;
       })
     );
-
+    await setCachedJson(cacheKey, populated, 60);
+    res.set('X-Cache', 'MISS');
     res.status(200).json(populated);
   } catch (error) {
     next(error);

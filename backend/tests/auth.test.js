@@ -318,4 +318,85 @@ describe('Cognito Authentication & Role Authorization Middleware', () => {
       expect(res.body).toEqual({ access: 'granted', role: 'admin' });
     });
   });
+
+  describe('Cognito verifier initialization & unconfigured states', () => {
+    test('returns 500 when Cognito verifier is not configured', async () => {
+      setVerifier(null);
+
+      const res = await request(app)
+        .get('/test/protected')
+        .set('Authorization', 'Bearer some-token');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        error: 'Cognito authentication verifier is not configured'
+      });
+    });
+
+    test('verifies ID token payload fixture with full claims (sub, name, email, groups)', async () => {
+      mockVerifier.verify.mockResolvedValue({
+        sub: 'id-token-sub-456',
+        name: 'Alice ID Token',
+        email: 'alice@example.com',
+        'cognito:groups': ['citizen'],
+        token_use: 'id'
+      });
+
+      jest.spyOn(User, 'findOne').mockResolvedValue(null);
+      jest.spyOn(User, 'create').mockResolvedValue({
+        _id: '507f1f77bcf86cd799439099',
+        cognitoSub: 'id-token-sub-456',
+        name: 'Alice ID Token',
+        role: 'citizen'
+      });
+
+      const res = await request(app)
+        .get('/test/protected')
+        .set('Authorization', 'Bearer sample-id-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.sub).toBe('id-token-sub-456');
+      expect(res.body.role).toBe('citizen');
+    });
+
+    test('verifies Access token payload fixture with client_id, username, and collector group', async () => {
+      mockVerifier.verify.mockResolvedValue({
+        sub: 'access-token-sub-789',
+        username: 'collector_access_user',
+        client_id: 'appclient1234567890abcdef',
+        'cognito:groups': ['collector'],
+        token_use: 'access'
+      });
+
+      jest.spyOn(User, 'findOne').mockResolvedValue(null);
+      jest.spyOn(User, 'create').mockResolvedValue({
+        _id: '507f1f77bcf86cd799439098',
+        cognitoSub: 'access-token-sub-789',
+        name: 'collector_access_user',
+        role: 'collector'
+      });
+
+      const res = await request(app)
+        .get('/test/protected')
+        .set('Authorization', 'Bearer sample-access-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.sub).toBe('access-token-sub-789');
+      expect(res.body.role).toBe('collector');
+    });
+
+    test('rejects token when payload sub claim is missing', async () => {
+      mockVerifier.verify.mockResolvedValue({
+        username: 'missing_sub_user',
+        'cognito:groups': ['citizen']
+      });
+
+      const res = await request(app)
+        .get('/test/protected')
+        .set('Authorization', 'Bearer malformed-payload-token');
+
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ error: 'Invalid token claims' });
+    });
+  });
 });

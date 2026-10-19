@@ -39,14 +39,27 @@ let jwtVerifier = null;
  * Initializes or returns the Cognito JWT verifier instance.
  */
 function getVerifier() {
-  if (!jwtVerifier && env.COGNITO_USER_POOL_ID && env.COGNITO_CLIENT_ID) {
-    // tokenUse: null allows verifying both ID and Access tokens as specified in SPEC.md Section 8
-    jwtVerifier = CognitoJwtVerifier.create({
-      userPoolId: env.COGNITO_USER_POOL_ID,
-      clientId: env.COGNITO_CLIENT_ID,
-      tokenUse: null
-    });
+  if (jwtVerifier) {
+    return jwtVerifier;
   }
+
+  const poolId = env.COGNITO_USER_POOL_ID;
+  const clientId = env.COGNITO_CLIENT_ID;
+
+  if (poolId && clientId) {
+    try {
+      // tokenUse: null allows verifying both ID and Access tokens as specified in SPEC.md Section 8
+      jwtVerifier = CognitoJwtVerifier.create({
+        userPoolId: poolId,
+        clientId: clientId,
+        tokenUse: null
+      });
+    } catch (err) {
+      console.error('Failed to initialize CognitoJwtVerifier with provided configuration:', err.message);
+      jwtVerifier = null;
+    }
+  }
+
   return jwtVerifier;
 }
 

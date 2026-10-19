@@ -6,6 +6,22 @@ dotenv.config();
 
 const isTest = process.env.NODE_ENV === 'test';
 
+function sanitizeConfigValue(val) {
+  if (!val || typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (!trimmed) return undefined;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.includes('placeholder') ||
+    lower.includes('your_actual') ||
+    lower.startsWith('<') ||
+    lower.startsWith('your_')
+  ) {
+    return undefined;
+  }
+  return trimmed;
+}
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -13,6 +29,7 @@ const envSchema = z
     MONGODB_URI: z.string().min(1, 'MONGODB_URI must be provided'),
     COGNITO_USER_POOL_ID: z.string().optional(),
     COGNITO_CLIENT_ID: z.string().optional(),
+    REDIS_URL: z.string().default(process.env.REDIS_URL || 'redis://localhost:6379'),
     ALLOW_DEV_DEMO_AUTH: z
       .enum(['true', 'false'])
       .default('false')
@@ -36,8 +53,9 @@ try {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
     MONGODB_URI: process.env.MONGODB_URI || (isTest ? 'mongodb://localhost:27017/e-waste-passport-test' : undefined),
-    COGNITO_USER_POOL_ID: process.env.COGNITO_USER_POOL_ID,
-    COGNITO_CLIENT_ID: process.env.COGNITO_CLIENT_ID,
+    COGNITO_USER_POOL_ID: sanitizeConfigValue(process.env.COGNITO_USER_POOL_ID),
+    COGNITO_CLIENT_ID: sanitizeConfigValue(process.env.COGNITO_CLIENT_ID),
+    REDIS_URL: process.env.REDIS_URL,
     ALLOW_DEV_DEMO_AUTH: process.env.ALLOW_DEV_DEMO_AUTH || 'false',
     CORS_ORIGIN: process.env.CORS_ORIGIN,
     AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || (isTest ? 'us-east-1' : undefined),

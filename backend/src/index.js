@@ -1,33 +1,56 @@
+
 const app = require('./app');
 const env = require('./config/env');
-const { connectDB } = require('./config/db');
+const { connectDB, disconnectDB } = require('./config/db');
+const { connectRedis, disconnectRedis } = require('./config/redis');
 
 async function startServer() {
   try {
     await connectDB();
+
+    try {
+      await connectRedis();
+    } catch (redisError) {
+      console.error(
+        'Redis connection failed; continuing without cache:',
+        redisError.message
+      );
+    }
+
     const server = app.listen(env.PORT, '0.0.0.0', () => {
-      console.log(`E-Waste Passport API server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+      console.log(
+        `E-Waste Passport API server running on port ${env.PORT} in ${env.NODE_ENV} mode`
+      );
     });
 
+    let shuttingDown = false;
+
     const shutdown = async (signal) => {
-      console.log(`${signal} received: closing HTTP server and terminating database connections gracefully...`);
+      if (shuttingDown) return;
+      shuttingDown = true;
+
+      console.log(`${signal} received: shutting down gracefully...`);
+
+      const forceExit = setTimeout(() => {
+        console.error('Forced shutdown due to timeout');
+        process.exit(1);
+      }, 10000);
+
+      forceExit.unref();
+
       server.close(async () => {
         try {
-          const { disconnectDB } = require('./config/db');
+          await disconnectRedis();
           await disconnectDB();
-          console.log('Database disconnected successfully. Exiting.');
+          clearTimeout(forceExit);
+          console.log('Redis and MongoDB disconnected. Exiting.');
           process.exit(0);
-        } catch (err) {
-          console.error('Error during graceful disconnect:', err);
+        } catch (error) {
+          clearTimeout(forceExit);
+          console.error('Error during shutdown:', error.message);
           process.exit(1);
         }
       });
-
-      // Force close if graceful shutdown takes longer than 10 seconds
-      setTimeout(() => {
-        console.error('Forced shutdown due to timeout');
-        process.exit(1);
-      }, 10000).unref();
     };
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -35,7 +58,10 @@ async function startServer() {
 
     return server;
   } catch (error) {
-    console.error('Server failed to start due to database error');
+    console.error(
+      'Server failed to start due to database error:',
+      error.message || error
+    );
     process.exit(1);
   }
 }
@@ -45,4 +71,3 @@ if (require.main === module) {
 }
 
 module.exports = { startServer };
-
